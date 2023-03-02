@@ -1,93 +1,68 @@
-import socket
-import threading
-import ctypes
-from queue import Queue
-import struct
-import gamepadReading
+import cv2, imutils, socket, threading
+import numpy as np
+import time
+import base64
+from udpStructures import VehicleStruct, ControlStruct
+from vehicle import Vehicle
 
-class _CONTROLLER_DB_STRUCT(ctypes.Structure):
-    _fields_ = [("channel", ctypes.c_float * 20)]
+BUFF_SIZE = 65536
+_video_flag = False
 
-HOST = '192.168.178.31'
-PORT = 50007
-BUFFER_SIZE = 80
-ADDR = (HOST, PORT)
+def map_control_to_vehicle_struct(control_struct: ControlStruct):
+    pass
 
-def get_controller_data(controller: gamepadReading.XboxController):
-    return controller.read()
+def udp_send_webcam():
+    global _video_flag
+    webcam_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    webcam_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFF_SIZE)
+    socket_ip = "0.0.0.0"
+    socket_port = 9999
+    socket_address = (socket_ip, socket_port)
+    webcam_socket.bind(socket_address)
 
-def udp_receive():
+    vid = cv2.VideoCapture(0)
+
     while True:
-        pass
+        msg, server_address = webcam_socket.recvfrom(BUFF_SIZE)
+        print("Got Connection from: ", server_address)
+        WIDTH = 400
+        while vid.isOpen() and _video_flag:
+            _, frame = vid.read()
+            frame = imutils.resize(frame, width=WIDTH)
+            encoded, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            message = base64.b64encode(buffer)
+            webcam_socket.sendto(message, server_address)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                webcam_socket.close()
+                break
 
-def udp_send():
+def udp_receive_controls():
+    global _video_flag
+    vehicle = Vehicle()
+    vehicle_struct = VehicleStruct()
+    control_struct = ControlStruct()
+    control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 70)
+    socket_ip = "0.0.0.0"
+    socket_port = 50007
+    socket_address = (socket_ip, socket_port)
+    control_socket.bind(socket_address)
+
     while True:
-        controller_data = get_controller_data(controller=controller)
-        client.sendto(encode_bytes_from_dict(controller_data), ADDR)
-
-def decode_dict_from_bytes(controller_db: _CONTROLLER_DB_STRUCT):
-    return {
-            "A": controller_db.channel[0],
-            "X": controller_db.channel[1],
-            "Y": controller_db.channel[2],
-            "B": controller_db.channel[3],
-            "RB": controller_db.channel[4],
-            "RT": controller_db.channel[5],
-            "LB": controller_db.channel[6],
-            "LT": controller_db.channel[7],
-            "d-up": controller_db.channel[8],
-            "d-left": controller_db.channel[9],
-            "d-down": controller_db.channel[10],
-            "d-right": controller_db.channel[11],
-            "LJoyThumb": controller_db.channel[12],
-            "RJoyThumb": controller_db.channel[13],
-            "Start": controller_db.channel[14],
-            "Back": controller_db.channel[15],
-            "LJoyX": controller_db.channel[16],
-            "LJoyY": controller_db.channel[17],
-            "RJoyX": controller_db.channel[18],
-            "RJoyY": controller_db.channel[19]
-            }
-
-def encode_bytes_from_dict(data: dict):
-    controller_db.channel[0] = data["A"]
-    controller_db.channel[1] = data["X"]
-    controller_db.channel[2] = data["Y"]
-    controller_db.channel[3] = data["B"]
-    controller_db.channel[4] = data["RB"]
-    controller_db.channel[5] = data["RT"]
-    controller_db.channel[6] = data["LB"]
-    controller_db.channel[7] = data["LT"]
-    controller_db.channel[8] = data["d-up"]
-    controller_db.channel[9] = data["d-left"]
-    controller_db.channel[10] = data["d-down"]
-    controller_db.channel[11] = data["d-right"]
-    controller_db.channel[12] = data["LJoyThumb"]
-    controller_db.channel[13] = data["RJoyThumb"]
-    controller_db.channel[14] = data["Start"]
-    controller_db.channel[15] = data["Back"]
-    controller_db.channel[16] = data["LJoyX"]
-    controller_db.channel[17] = data["LJoyY"]
-    controller_db.channel[18] = data["RJoyX"]
-    controller_db.channel[19] = data["RJoyY"]
-
-    return controller_db
+        control_struct, server_address = control_socket.recvfrom(70)
+        vehicle_struct = map_control_to_vehicle_struct(control_struct)
+        # Controls of vehicle
+        vehicle_struct = vehicle.control_lights(vehicle_struct, control_struct)
+        vehicle.control_vehicle(control_struct.RT, control_struct.LT)
+        vehicle.control_steering(control_struct.LJoyX)
+        vehicle.control_shift(control_struct.B)
 
 if __name__ == '__main__':
+    webcam_thread = threading.Thread(target=udp_send_webcam)
+    webcam_thread.daemon = True
+    control_thread = threading.Thread(target=udp_receive_controls)
+    control_thread.daemon = True
 
-    controller = gamepadReading.XboxController()
-    controller_db = _CONTROLLER_DB_STRUCT()
-
-    lock = threading.RLock()
-    queue = Queue()
-
-    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    t1 = threading.Thread(target=udp_send)
-    t2 = threading.Thread(target=udp_receive)
-
-    t1.daemon = True
-    t2.daemon = True
-
-    t1.start()
-    t2.start()
+    webcam_thread.start()
+    control_thread.start()

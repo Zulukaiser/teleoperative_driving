@@ -1,8 +1,8 @@
 import RPi.GPIO as GPIO
 import time
 
+
 class Vehicle(object):
-    
     def __init__(self):
         self.indicator_left = 11
         self.indicator_right = 13
@@ -23,7 +23,7 @@ class Vehicle(object):
         GPIO.setup(self.driving, GPIO.OUT)
         GPIO.setup(self.steering, GPIO.OUT)
         GPIO.setup(self.gearbox, GPIO.OUT)
-        
+
         self.drive = GPIO.PWM(self.driving, 100)
         self.steer = GPIO.PWM(self.steering, 100)
         self.gear = GPIO.PWM(self.gearbox, 100)
@@ -65,11 +65,11 @@ class Vehicle(object):
         return vehicle_data
 
     def control_steering(self, duty_cycle):
-        self.steer.start(int(duty_cycle*100.0))
+        self.steer.start(int(duty_cycle * 100.0))
 
     def control_vehicle(self, gas, brake):
         # check documentation for brake implementation
-        self.drive.start(int(gas*100.0))
+        self.drive.start(int(gas * 100.0))
 
     def control_shift(self, gear_up, gear_down):
         # Check documentation for gearbox implementation

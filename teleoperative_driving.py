@@ -3,7 +3,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QWidget, QApplication, QLabel
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, Qt, QThread
-import cv2, imutils, socket, sys, ctypes, gamepadReading, time, base64
+import cv2, imutils, socket, sys, ctypes, gamepadReading, time, base64, urllib
 import numpy as np
 
 
@@ -157,7 +157,8 @@ class WebcamThread(QThread):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.BUFF_SIZE)
         self.udp_socket.bind(("0.0.0.0", 9999))
-        self.host_ip = "192.168.178.35"
+        # self.host_ip = "192.168.178.35"
+        self.host_ip = "169.254.117.19"
         self.host_port = 9999
         message = b"Initializing ..."
         self.udp_socket.sendto(message, (self.host_ip, self.host_port))
@@ -388,11 +389,15 @@ class Ui_window_title(object):
         self.brake_light.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.brake_light.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.brake_light.setObjectName("brake_light")
+        self.steering_wheel_image = QtGui.QImage()
+        self.steering_wheel_image.loadFromData(
+            bytearray(open("steering_wheel.png", "rb").read())
+        )
+        self.steering_wheel_image_pixmap = QtGui.QPixmap(
+            self.steering_wheel_image
+        ).scaled(256, 256)
         self.steering_wheel = QtWidgets.QLabel(parent=self.centralwidget)
         self.steering_wheel.setGeometry(QtCore.QRect(1330, 560, 256, 256))
-        self.steering_wheel.setStyleSheet(
-            "background-color: rgb(255, 255, 255);\nimage: url(:/steering_wheel/steering_wheel.png);"
-        )
         self.steering_wheel.setFrameShape(QtWidgets.QFrame.Shape.WinPanel)
         self.steering_wheel.setText("")
         self.steering_wheel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
@@ -535,15 +540,15 @@ class Ui_window_title(object):
 
     def clicked_ai_overlay(self):
         if self.ai_overlay.isChecked():
-            self.log_console.append("AI Overlay activated")
             try:
                 self.thread._ai_overlay_flag = True
+                self.log_console.append("AI Overlay activated")
             except:
                 self.log_console.append("No Video Thread available")
         else:
-            self.log_console.append("AI Overlay deactivated")
             try:
                 self.thread._ai_overlay_flag = False
+                self.log_console.append("AI Overlay deactivated")
             except:
                 self.log_console.append("No Video Thread available")
 
@@ -584,9 +589,11 @@ class Ui_window_title(object):
         if self.controls_state:
             self.controls_state = False
             self.activate_controls.setText("Activate Controls")
+            self.log_console.append(f"Controls deactivated")
         else:
             self.controls_state = True
             self.activate_controls.setText("Deactivate Controls")
+            self.log_console.append(f"Controls activated")
 
     def check_connection(self, ip, port):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -745,9 +752,26 @@ class Ui_window_title(object):
         self.gas_value.setText(str(controller_data["RT"] * 100.0))
         self.brake_value.setText(str(controller_data["LT"] * 100.0))
         self.steering_wheel_angle.setText(
-            str(controller_data["LJoyX"] * controller_data["LJoyX"] * 90.0)
+            str(
+                np.sign(controller_data["LJoyX"])
+                * controller_data["LJoyX"]
+                * controller_data["LJoyX"]
+                * 90.0
+            )
+        )
+        self.rotate_steering_wheel(
+            np.sign(controller_data["LJoyX"])
+            * controller_data["LJoyX"]
+            * controller_data["LJoyX"]
+            * 90.0
         )
         # do the actual controls
+
+    def rotate_steering_wheel(self, angle):
+        pixmap = QtGui.QPixmap(self.steering_wheel_image).scaled(256, 256)
+        transform = QtGui.QTransform().rotate(angle)
+        pixmap = pixmap.transformed(transform)
+        self.steering_wheel.setPixmap(pixmap)
 
 
 if __name__ == "__main__":

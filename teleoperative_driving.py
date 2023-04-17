@@ -764,7 +764,7 @@ class Ui_window_title(object):
             * controller_data["LJoyX"]
             * controller_data["LJoyX"]
             * 90.0
-        )
+        ) # delta = sign(swa) * swa^2 * 90°
         # do the actual controls
 
     def rotate_steering_wheel(self, angle):

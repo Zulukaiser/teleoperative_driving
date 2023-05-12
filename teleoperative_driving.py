@@ -157,11 +157,15 @@ class WebcamThread(QThread):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.BUFF_SIZE)
         self.udp_socket.bind(("0.0.0.0", 9999))
-        # self.host_ip = "192.168.178.35"
-        self.host_ip = "169.254.117.19"
+        self.host_ip = "192.168.178.35"
+        # self.host_ip = "169.254.117.19"
         self.host_port = 9999
         message = b"Initializing ..."
-        self.udp_socket.sendto(message, (self.host_ip, self.host_port))
+        try:
+            self.udp_socket.sendto(message, (self.host_ip, self.host_port))
+        except:
+            ui.log_console.append("No Webcam Signal")
+            self.stop()
         while self._run_flag:
             if self._run_flag and self._ai_overlay_flag:
                 self.detect_motion(15)

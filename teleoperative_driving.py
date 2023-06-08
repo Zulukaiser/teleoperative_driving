@@ -3,12 +3,12 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QWidget, QApplication, QLabel
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, Qt, QThread
-import cv2, imutils, socket, sys, ctypes, gamepadReading, time, base64, urllib
+import cv2, imutils, socket, sys, ctypes, fanatec_hid, time, base64, urllib
 import numpy as np
 
 
 class _CONTROLLER_DB_STRUCT(ctypes.Structure):
-    _fields_ = [("channel", ctypes.c_float * 20)]
+    _fields_ = [("channel", ctypes.c_double * 8)]
 
 
 class ControlsThread(QThread):
@@ -18,28 +18,16 @@ class ControlsThread(QThread):
         super().__init__()
         self._run_flag = True
         self.controller_db = _CONTROLLER_DB_STRUCT()
-        self.controller = gamepadReading.XboxController()
+        self.controller = fanatec_hid.ControlInput()
         self.controller_db_dict = {
-            "A": self.controller_db.channel[0],
-            "X": self.controller_db.channel[1],
-            "Y": self.controller_db.channel[2],
-            "B": self.controller_db.channel[3],
-            "RB": self.controller_db.channel[4],
-            "RT": self.controller_db.channel[5],
-            "LB": self.controller_db.channel[6],
-            "LT": self.controller_db.channel[7],
-            "d-up": self.controller_db.channel[8],
-            "d-left": self.controller_db.channel[9],
-            "d-down": self.controller_db.channel[10],
-            "d-right": self.controller_db.channel[11],
-            "LJoyThumb": self.controller_db.channel[12],
-            "RJoyThumb": self.controller_db.channel[13],
-            "Start": self.controller_db.channel[14],
-            "Back": self.controller_db.channel[15],
-            "LJoyX": self.controller_db.channel[16],
-            "LJoyY": self.controller_db.channel[17],
-            "RJoyX": self.controller_db.channel[18],
-            "RJoyY": self.controller_db.channel[19],
+            "Gas": self.controller_db.channel[0],
+            "Brake": self.controller_db.channel[1],
+            "SWA": self.controller_db.channel[2],
+            "Lowbeam": self.controller_db.channel[3],
+            "Highbeam": self.controller_db.channel[4],
+            "Horn": self.controller_db.channel[5],
+            "Indicator_L": self.controller_db.channel[6],
+            "Indicator_R": self.controller_db.channel[7],
         }
 
     def run(self):
@@ -54,49 +42,25 @@ class ControlsThread(QThread):
 
     def decode_dict_from_bytes(self):
         self.controller_db_dict = {
-            "A": self.controller_db.channel[0],
-            "X": self.controller_db.channel[1],
-            "Y": self.controller_db.channel[2],
-            "B": self.controller_db.channel[3],
-            "RB": self.controller_db.channel[4],
-            "RT": self.controller_db.channel[5],
-            "LB": self.controller_db.channel[6],
-            "LT": self.controller_db.channel[7],
-            "d-up": self.controller_db.channel[8],
-            "d-left": self.controller_db.channel[9],
-            "d-down": self.controller_db.channel[10],
-            "d-right": self.controller_db.channel[11],
-            "LJoyThumb": self.controller_db.channel[12],
-            "RJoyThumb": self.controller_db.channel[13],
-            "Start": self.controller_db.channel[14],
-            "Back": self.controller_db.channel[15],
-            "LJoyX": self.controller_db.channel[16],
-            "LJoyY": self.controller_db.channel[17],
-            "RJoyX": self.controller_db.channel[18],
-            "RJoyY": self.controller_db.channel[19],
+            "Gas": self.controller_db.channel[0],
+            "Brake": self.controller_db.channel[1],
+            "SWA": self.controller_db.channel[2],
+            "Lowbeam": self.controller_db.channel[3],
+            "Highbeam": self.controller_db.channel[4],
+            "Horn": self.controller_db.channel[5],
+            "Indicator_L": self.controller_db.channel[6],
+            "Indicator_R": self.controller_db.channel[7],
         }
 
     def encode_bytes_from_dict(self):
-        self.controller_db.channel[0] = self.controller_db_dict["A"]
-        self.controller_db.channel[1] = self.controller_db_dict["X"]
-        self.controller_db.channel[2] = self.controller_db_dict["Y"]
-        self.controller_db.channel[3] = self.controller_db_dict["B"]
-        self.controller_db.channel[4] = self.controller_db_dict["RB"]
-        self.controller_db.channel[5] = self.controller_db_dict["RT"]
-        self.controller_db.channel[6] = self.controller_db_dict["LB"]
-        self.controller_db.channel[7] = self.controller_db_dict["LT"]
-        self.controller_db.channel[8] = self.controller_db_dict["d-up"]
-        self.controller_db.channel[9] = self.controller_db_dict["d-left"]
-        self.controller_db.channel[10] = self.controller_db_dict["d-down"]
-        self.controller_db.channel[11] = self.controller_db_dict["d-right"]
-        self.controller_db.channel[12] = self.controller_db_dict["LJoyThumb"]
-        self.controller_db.channel[13] = self.controller_db_dict["RJoyThumb"]
-        self.controller_db.channel[14] = self.controller_db_dict["Start"]
-        self.controller_db.channel[15] = self.controller_db_dict["Back"]
-        self.controller_db.channel[16] = self.controller_db_dict["LJoyX"]
-        self.controller_db.channel[17] = self.controller_db_dict["LJoyY"]
-        self.controller_db.channel[18] = self.controller_db_dict["RJoyX"]
-        self.controller_db.channel[19] = self.controller_db_dict["RJoyY"]
+        self.controller_db.channel[0] = self.controller_db_dict["Gas"]
+        self.controller_db.channel[1] = self.controller_db_dict["Brake"]
+        self.controller_db.channel[2] = self.controller_db_dict["SWA"]
+        self.controller_db.channel[3] = self.controller_db_dict["Lowbeam"]
+        self.controller_db.channel[4] = self.controller_db_dict["Highbeam"]
+        self.controller_db.channel[5] = self.controller_db_dict["Horn"]
+        self.controller_db.channel[6] = self.controller_db_dict["Indicator_L"]
+        self.controller_db.channel[7] = self.controller_db_dict["Indicator_R"]
 
     def get_controller_data(self):
         return self.controller.read()
@@ -506,6 +470,9 @@ class Ui_window_title(object):
             "brake": {"state": 0, "pin": 18},
         }
 
+        self.time_epoch_obj = time.gmtime(0)
+        self.time_epoch = time.asctime(self.time_epoch_obj)
+
         self.controller_thread = ControlsThread()
         self.controller_thread.controls_signal.connect(self.handle_controller)
         self.controller_thread.start()
@@ -717,21 +684,21 @@ class Ui_window_title(object):
 
     def handle_controller(self, controller_data: dict):
         # Update all qt labels
-        if controller_data["LB"]:
+        if controller_data["Indicator_L"]:
             if not self.lights["indicator_left"]["state"]:
                 self.left_indicator.setStyleSheet("background-color: orange")
                 self.lights["indicator_left"]["state"] = 1
             else:
                 self.left_indicator.setStyleSheet("background-color: white")
                 self.lights["indicator_left"]["state"] = 0
-        if controller_data["RB"]:
+        if controller_data["Indicator_R"]:
             if not self.lights["indicator_right"]["state"]:
                 self.right_indicator.setStyleSheet("background-color: orange")
                 self.lights["indicator_right"]["state"] = 1
             else:
                 self.right_indicator.setStyleSheet("background-color: white")
                 self.lights["indicator_right"]["state"] = 0
-        if controller_data["X"]:
+        if controller_data["Lowbeam"]:
             if not self.lights["low_beam"]["state"]:
                 self.low_beam_indicator.setStyleSheet(
                     "background-color: green;\ncolor: white"
@@ -742,33 +709,33 @@ class Ui_window_title(object):
                     "background-color: white;\ncolor: black"
                 )
                 self.lights["low_beam"]["state"] = 0
-        if controller_data["Y"]:
+        if controller_data["Highbeam"]:
             if not self.lights["high_beam"]["state"]:
                 self.high_beam.setStyleSheet("background-color: blue;\ncolor: white")
                 self.lights["high_beam"]["state"] = 1
             else:
                 self.high_beam.setStyleSheet("background-color: white;\ncolor: black")
                 self.lights["high_beam"]["state"] = 0
-        if controller_data["LT"] != 0.0:
+        if controller_data["Brake"] != 0.0:
             self.brake_light.setStyleSheet("background-color: red")
         else:
             self.brake_light.setStyleSheet("background-color: white")
-        self.gas_value.setText(str(controller_data["RT"] * 100.0))
-        self.brake_value.setText(str(controller_data["LT"] * 100.0))
+        self.gas_value.setText(str(controller_data["Gas"] * 100.0))
+        self.brake_value.setText(str(controller_data["Brake"] * 100.0))
         self.steering_wheel_angle.setText(
             str(
-                np.sign(controller_data["LJoyX"])
-                * controller_data["LJoyX"]
-                * controller_data["LJoyX"]
+                np.sign(controller_data["SWA"])
+                * controller_data["SWA"]
+                * controller_data["SWA"]
                 * 90.0
             )
         )
         self.rotate_steering_wheel(
-            np.sign(controller_data["LJoyX"])
-            * controller_data["LJoyX"]
-            * controller_data["LJoyX"]
+            np.sign(controller_data["SWA"])
+            * controller_data["SWA"]
+            * controller_data["SWA"]
             * 90.0
-        ) # delta = sign(swa) * swa^2 * 90°
+        )  # delta = sign(swa) * swa^2 * 90°
         # do the actual controls
 
     def rotate_steering_wheel(self, angle):
@@ -776,6 +743,9 @@ class Ui_window_title(object):
         transform = QtGui.QTransform().rotate(angle)
         pixmap = pixmap.transformed(transform)
         self.steering_wheel.setPixmap(pixmap)
+
+    def get_time(self):
+        return round(time.time() * 1000)
 
 
 if __name__ == "__main__":

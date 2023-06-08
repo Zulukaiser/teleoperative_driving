@@ -6,49 +6,57 @@ import struct
 from crc8 import crc8
 
 
-class tdtp(object):
-    def __init__(self):
+class TDTP(object):
+    def __init__(self, master):
         self.package_id = 0
         self.package_loss = 0
+        self.timestamp_host = 0
+        self.master = master
+        self.crc_object = crc8()
+        self.latency = 0
 
     def getcrc(self, data, crc_format="hex"):
-        crc_object = crc8()
-        crc_object.update(data)
+        self.crc_object.update(data)
         if crc_format == "hex":
-            return crc_object.hexdigest()
+            return self.crc_object.hexdigest()
         elif crc_format == "bytes":
-            return crc_object.digest()
+            return self.crc_object.digest()
         else:
             return False
 
     def float_to_hex(self, e: float):
-        return hex(struct.unpack("<I", struct.pack("<e", e))[0])
+        return bytes(struct.pack("d", e))
 
-    def assemble(self, identifier: int, data) -> bytes:
+    def assemble(self, identifier: int, data: float) -> bytes:
         self.package_id += 1
-        crc = self.getcrc(data)
-        timestamp = time.time_ns()
-        package_id_bytes = self.package_id.to_bytes(2, "big")
-        crc_bytes = crc.to_bytes(1, "big")
-        timestamp_bytes = timestamp.to_bytes(4, "big")
+        if self.master:
+            timestamp = round(time.time() * 1000)
+        else:
+            timestamp = self.timestamp_host
+        package_id_bytes = self.package_id.to_bytes(8, "big")
+        timestamp_bytes = timestamp.to_bytes(8, "big")
         identifier_bytes = identifier.to_bytes(1, "big")
-        if type(data) == float:
-            data_bytes = self.float_to_hex(data)
-        elif type(data) == int:
-            data_bytes = data.to_bytes(4, "big")
+        data_bytes = self.float_to_hex(data)
+        crc = self.getcrc(data_bytes).encode()
+
         msg = b"".join(
-            [identifier_bytes, data_bytes, crc_bytes, package_id_bytes, timestamp_bytes]
+            [identifier_bytes, data_bytes, crc, package_id_bytes, timestamp_bytes]
         )
         return msg
 
     def disassemble(self, msg: bytes):
         identifier = int.from_bytes(msg[:1], "big")
-        data = int.from_bytes(msg[1:5], "big")
-        crc = hex(int.from_bytes(msg[5:6], "big"))
-        package_id = int.from_bytes(msg[6:8], "big")
-        timestamp = int.from_bytes(msg[8:], "big")
+        data = struct.unpack("d", msg[1:9])[0]
+        crc = msg[9:11]
+        package_id = int.from_bytes(msg[11:19], "big")
+        timestamp = int.from_bytes(msg[19:], "big")
+        crc_check = self.getcrc(msg[1:9]).encode()
+        if self.master:
+            self.latency = round(time.time() * 1000) - timestamp
+        if not self.master:
+            self.timestamp_host = timestamp
 
-        if crc == self.getcrc(data):
+        if crc == crc_check:
             return identifier, data, package_id, timestamp
 
         else:

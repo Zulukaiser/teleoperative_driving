@@ -1,65 +1,98 @@
-import sys
-import usb1
-import time
+import pygame
+import threading
 
-VENDOR_ID = 0x0EB7
-DEVICE_ID = 0x0007
-# DEVICE_ID_WHEEL = 0x0007
-# DEVICE_ID_PEDALS = 0x183b
+pygame.init()
 
-CMD_BASE = [0x01]
-CMD_LED_BASE = [0xF8]
-CMD_BASE_LED = [0x13]  # CMD_BASE+CMD_LED_BASE+CMD_BASE_LED+[val]
-CMD_WHEEL_LED = [0x09, 0x08, 0x00]  # CMD_BASE+CMD_LED_BASE+CMD_WHEEL_LED+[val]
-
-CMD_SIMPLE_SPRING_ENABLE = [0x11, 0x0B]
-CMD_SIMPLE_SPRING_DISABLE = [0x13, 0x0B]
-CMD_SIMPLE_SPRING_ARGS = [
-    0x80,
-    0x80,
-    0x10,
-    0x00,
-    0x00,
-]  # offset?, offset?, coefficient, ??, saturation
-
-CMD_FORCE_SPRING = [
-    0x01,
-    0x08,
-]  # CMD_BASE+CMD_FORCE_SPRING+[val] # val 0x80 -> no force; val 0x00 -> full force to the left
-CMD_FORCE_SPRING_DISABLE = [0x03, 0x08]
+clock = pygame.time.Clock()
 
 
-def payload(args):
-    p = bytearray(CMD_BASE + args)
-    # p.extend(args)
-    # pad with zeros
-    p.extend([0] * (8 - len(p)))
-    print(p)
-    return p
+class ControlInput:
+    def __init__(self):
+        self.done = False
+        self.joystick = None
+        self.joysticks = {}
+        self.joy = None
+        self.gas = 0
+        self.brake = 0
+        self.swa = 0
+        self.lowbeam = 0
+        self.highbeam = 0
+        self.horn = 0
+        self.indicator_l = 0
+        self.indicator_r = 0
 
-
-if __name__ == "__main__":
-    val = None
-    if len(sys.argv) == 2:
-        val = int(sys.argv[1])
-
-    with usb1.USBContext() as context:
-        handle = context.openByVendorIDAndProductID(
-            VENDOR_ID,
-            DEVICE_ID,
-            skip_on_error=True,
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_controller, args=()
         )
-        if handle is None:
-            print("Device not found")
-            sys.exit(1)
+        self._monitor_thread.daemon = True
+        self._monitor_thread.start()
 
-        handle.setAutoDetachKernelDriver(True)
-        with handle.claimInterface(0):
-            # request reading of current value
-            handle.interruptWrite(0x01, payload(CMD_LED_BASE + CMD_WHEEL_LED + [val]))
-            # handle.interruptWrite(0x01, payload(CMD_FORCE_SPRING+[val]))
-            # time.sleep(1)
-            # handle.interruptWrite(0x01, payload(CMD_FORCE_SPRING_DISABLE))
-            # handle.interruptWrite(0x01, payload(CMD_SIMPLE_SPRING_ENABLE+CMD_SIMPLE_SPRING_ARGS))
-            # time.sleep(5)
-            # handle.interruptWrite(0x01, payload(CMD_SIMPLE_SPRING_DISABLE))
+    def read(self):
+        gas = self.gas
+        brake = self.brake
+        swa = self.swa
+        lowbeam = self.lowbeam
+        highbeam = self.highbeam
+        horn = self.horn
+        indicator_l = self.indicator_l
+        indicator_r = self.indicator_r
+
+        return {
+            "Gas": float(gas),
+            "Brake": float(brake),
+            "SWA": float(swa),
+            "Lowbeam": bool(lowbeam),
+            "Highbeam": bool(highbeam),
+            "Horn": bool(horn),
+            "Indicator_L": bool(indicator_l),
+            "Indicator_R": bool(indicator_r),
+        }
+
+    def _monitor_controller(self):
+        self.done = False
+        while not self.done:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.done = True
+
+                if event.type == pygame.JOYBUTTONDOWN:
+                    if event.button == 0:
+                        self.joystick = self.joysticks[event.instance_id]
+
+                if event.type == pygame.JOYBUTTONUP:
+                    del self.joysticks[event.instance_id]
+
+                if event.type == pygame.JOYDEVICEADDED:
+                    self.joy = pygame.joystick.Joystick(event.device_index)
+                    self.joysticks[self.joy.get_instance_id()] = self.joy
+
+                if event.type == pygame.JOYDEVICEREMOVED:
+                    del self.joysticks[event.instance_id]
+
+                joystick_count = pygame.joystick.get_count()
+
+                for joystick in self.joysticks.values():
+                    jid = joystick.get_instance_id()
+                    name = joystick.get_name()
+                    guid = joystick.get_guid()
+                    power_level = joystick.get_power_level()
+                    axes = joystick.get_numaxes()
+                    buttons = joystick.get_numbuttons()
+                    hats = joystick.get_numhats()
+
+                    if name == "Fanatec USB Pedals":
+                        self.gas = (joystick.get_axis(0) + 1) / 2
+                        self.brake = (joystick.get_axid(1) + 1) / 1.5
+
+                    if name == "Fanatec Podium Wheel Base DD2":
+                        self.swa = joystick.get_axis(0)
+                        self.lowbeam = joystick.get_buttons(7)
+                        self.highbeam = joystick.get_buttons(11)
+                        self.horn = joystick.get_buttons(2)
+                        self.indicator_l = joystick.get_buttons(60)
+                        self.indicator_r = joystick.get_buttons(61)
+
+                clock.tick(60)
+
+    def stop(self):
+        self.done = True

@@ -1,4 +1,4 @@
-identifiers = {
+TDTP_IDENTIFIERS = {
     1: "Gas",
     2: "Brake",
     3: "SWA",
@@ -14,4 +14,5 @@ identifiers = {
     13: "IMU_PITCH",
     14: "IMU_ROLL",
     15: "BATT_U",
+    16: "PACKAGE_LOSS",
 }

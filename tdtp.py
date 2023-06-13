@@ -9,7 +9,9 @@ from crc8 import crc8
 class TDTP(object):
     def __init__(self, master):
         self.package_id = 0
+        self.package_id_remote = 0
         self.package_loss = 0
+        self.package_loss_remote = 0
         self.timestamp_host = 0
         self.master = master
         self.crc_object = crc8()
@@ -36,7 +38,10 @@ class TDTP(object):
         package_id_bytes = self.package_id.to_bytes(8, "big")
         timestamp_bytes = timestamp.to_bytes(8, "big")
         identifier_bytes = identifier.to_bytes(1, "big")
-        data_bytes = self.float_to_hex(data)
+        if identifier != 16:
+            data_bytes = self.float_to_hex(data)
+        else:
+            data_bytes = self.float_to_hex(float(self.package_loss_remote))
         crc = self.getcrc(data_bytes).encode()
 
         msg = b"".join(
@@ -51,6 +56,10 @@ class TDTP(object):
         package_id = int.from_bytes(msg[11:19], "big")
         timestamp = int.from_bytes(msg[19:], "big")
         crc_check = self.getcrc(msg[1:9]).encode()
+        self.package_loss_remote += package_id - (self.package_id_remote + 1.0)
+        self.package_id_remote = package_id
+        if identifier == 16:
+            self.package_loss = data
         if self.master:
             self.latency = round(time.time() * 1000) - timestamp
         if not self.master:
@@ -61,3 +70,8 @@ class TDTP(object):
 
         else:
             return False
+
+    def get_package_loss(self):
+        return (self.package_loss_remote + self.package_loss) / (
+            self.package_id + self.package_id_remote
+        )

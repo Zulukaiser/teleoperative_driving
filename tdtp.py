@@ -7,7 +7,7 @@ from crc8 import crc8
 
 
 class TDTP(object):
-    def __init__(self, master):
+    def __init__(self, master=False):
         self.package_id = 0
         self.package_id_remote = 0
         self.package_loss = 0
@@ -26,7 +26,7 @@ class TDTP(object):
         else:
             return False
 
-    def float_to_hex(self, e: float):
+    def float_to_hex(self, e: float) -> bytes:
         return bytes(struct.pack("d", e))
 
     def assemble(self, identifier: int, data: float) -> bytes:
@@ -71,7 +71,7 @@ class TDTP(object):
         else:
             return False
 
-    def get_package_loss(self):
+    def get_package_loss(self) -> float:
         return (self.package_loss_remote + self.package_loss) / (
             self.package_id + self.package_id_remote
         )

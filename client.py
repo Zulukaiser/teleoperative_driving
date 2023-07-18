@@ -4,9 +4,14 @@ import time
 import base64
 from udpStructures import VehicleStruct, ControlStruct
 from vehicle import Vehicle
+from gpiozero import Servo
+from tdtp import TDTP
 
 BUFF_SIZE = 65536
 _video_flag = False
+steering_servo = Servo(12)
+driving_servo = Servo(13)
+tdtp_handle = TDTP()
 
 
 def map_control_to_vehicle_struct(control_struct: ControlStruct):
@@ -45,23 +50,37 @@ def udp_send_webcam():
 def udp_receive_controls():
     global _video_flag
     vehicle = Vehicle()
-    vehicle_struct = VehicleStruct()
-    control_struct = ControlStruct()
     control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 70)
+    control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
     socket_ip = "0.0.0.0"
     socket_port = 50007
     socket_address = (socket_ip, socket_port)
     control_socket.bind(socket_address)
 
     while True:
-        control_struct, server_address = control_socket.recvfrom(70)
-        vehicle_struct = map_control_to_vehicle_struct(control_struct)
+        message_raw, server_address = control_socket.recvfrom(26)
+        message = tdtp_handle.disassemble(message_raw)
+        if not message:
+            continue
         # Controls of vehicle
-        vehicle_struct = vehicle.control_lights(vehicle_struct, control_struct)
-        vehicle.control_vehicle(control_struct.RT, control_struct.LT)
-        vehicle.control_steering(control_struct.LJoyX)
-        vehicle.control_shift(control_struct.B)
+        vehicle.control_vehicle(message)
+
+
+def udp_send_telemetry():
+    global _video_flag
+    telemetry_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    telemetry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
+    socket_ip = "0.0.0.0"
+    socket_port = 50008
+    socket_address = (socket_ip, socket_port)
+    telemetry_socket.bind(socket_address)
+
+    while True:
+        # Get Sensor data and Telemetry
+        data = 0
+        identifier = 1
+        message = tdtp_handle.assemble(identifier=identifier, data=data)
+        telemetry_socket.sendall(message)
 
 
 if __name__ == "__main__":
@@ -69,6 +88,9 @@ if __name__ == "__main__":
     webcam_thread.daemon = True
     control_thread = threading.Thread(target=udp_receive_controls)
     control_thread.daemon = True
+    telemetry_thread = threading.Thread(target=udp_send_telemetry)
+    telemetry_thread.daemon = True
 
     webcam_thread.start()
     control_thread.start()
+    telemetry_thread.start()

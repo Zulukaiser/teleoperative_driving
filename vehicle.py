@@ -1,76 +1,84 @@
-import RPi.GPIO as GPIO
 import time
+from gpiozero import Servo, DigitalOutputDevice, Buzzer
+from identifier_mapping import TDTP_IDENTIFIERS
 
 
 class Vehicle(object):
     def __init__(self):
         self.indicator_left = 11
-        self.indicator_right = 13
+        self.indicator_right = 14
         self.high_beam = 15
         self.low_beam = 16
         self.brake_lights = 18
+        self.horn = 19
         self.driving = 12
-        self.steering = 32
-        self.gearbox = 33
+        self.steering = 13
 
-        GPIO.setmode(GPIO.BOARD)
+        self.indicator_left_status = False
+        self.indicator_right_status = False
+        self.high_beam_status = False
+        self.low_beam_status = False
+        self.brake_lights_status = False
+        self.horn_status = False
 
-        GPIO.setup(self.indicator_left, GPIO.OUT)
-        GPIO.setup(self.indicator_right, GPIO.OUT)
-        GPIO.setup(self.high_lights, GPIO.OUT)
-        GPIO.setup(self.low_lights, GPIO.OUT)
-        GPIO.setup(self.brake_lights, GPIO.OUT)
-        GPIO.setup(self.driving, GPIO.OUT)
-        GPIO.setup(self.steering, GPIO.OUT)
-        GPIO.setup(self.gearbox, GPIO.OUT)
+        self.indicator_left_output = DigitalOutputDevice(pin=self.indicator_left)
+        self.indicator_right_output = DigitalOutputDevice(pin=self.indicator_right)
+        self.high_beam_output = DigitalOutputDevice(pin=self.high_beam)
+        self.low_beam_output = DigitalOutputDevice(pin=self.low_beam)
+        self.brake_lights_output = DigitalOutputDevice(pin=self.brake_lights)
+        self.horn_output = Buzzer(pin=self.horn)
 
-        self.drive = GPIO.PWM(self.driving, 100)
-        self.steer = GPIO.PWM(self.steering, 100)
-        self.gear = GPIO.PWM(self.gearbox, 100)
+        self.drive = Servo(self.driving)
+        self.steer = Servo(self.steering)
 
-    def control_lights(self, vehicle_data, control_data):
-        if control_data.X:
-            if not vehicle_data.low_beam:
-                GPIO.output(self.low_beam, True)
-                vehicle_data.low_beam = True
+    def control_vehicle(self, control_data):
+        identifier = TDTP_IDENTIFIERS[control_data[0]]
+        data = control_data[1]
+        if identifier == "Lowbeam" and data > 0:
+            if not self.low_beam_status:
+                self.low_beam_output.on()
+                self.low_beam_status = True
             else:
-                GPIO.output(self.low_beam, False)
-                vehicle_data.low_beam = False
-        if control_data.Y:
-            if not vehicle_data.high_beam:
-                GPIO.output(self.high_beam, True)
-                vehicle_data.high_beam = True
+                self.low_beam_output.off()
+                self.low_beam_status = False
+        if identifier == "Highbeam" and data > 0:
+            if not self.high_beam_status:
+                self.high_beam_output.on()
+                self.high_beam_status = True
             else:
-                GPIO.output(self.high_beam, False)
-                vehicle_data.high_beam = False
-        if control_data.RB:
-            if not vehicle_data.indicator_right:
-                GPIO.output(self.indicator_right, True)
-                vehicle_data.indicator_right = True
+                self.high_beam_output.off()
+                self.high_beam_status = False
+        if identifier == "Indicator_R" and data > 0:
+            if not self.indicator_right_status:
+                self.indicator_right_output.blink(
+                    on_time=1, off_time=1, n=None, background=True
+                )
+                self.indicator_right_status = True
             else:
-                GPIO.output(self.indicator_right, False)
-                vehicle_data.indicator_right = False
-        if control_data.LB:
-            if not vehicle_data.indicator_left:
-                GPIO.output(self.indicator_left, True)
-                vehicle_data.indicator_left = True
+                self.indicator_right_output.off()
+                self.indicator_right_status = False
+        if identifier == "Indicator_L" and data > 0:
+            if not self.indicator_left_status:
+                self.indicator_left_output.blink(
+                    on_time=1, off_time=1, n=None, background=True
+                )
+                self.indicator_left_status = True
             else:
-                GPIO.output(self.indicator_left, False)
-                vehicle_data.indicator_left = False
-        if control_data.LT > 0.05:
-            GPIO.output(self.brake_lights, True)
-        elif control_data.LT <= 0.05:
-            GPIO.output(self.brake_lights, False)
+                self.indicator_left_output.off()
+                self.indicator_left_status = False
+        if identifier == "Horn" and data > 0:
+            if not self.horn_status:
+                self.horn_output.on()
+                self.horn_status = True
+            else:
+                self.horn_output.off()
+                self.horn_status = False
+        if identifier == "Brake" and data > 0.05:
+            self.brake_lights_output.on()
+        elif identifier == "Lowbeam" and data <= 0.05:
+            self.brake_lights_output.off()
 
-        return vehicle_data
-
-    def control_steering(self, duty_cycle):
-        self.steer.start(int(duty_cycle * 100.0))
-
-    def control_vehicle(self, gas, brake):
-        # check documentation for brake implementation
-        self.drive.start(int(gas * 100.0))
-
-    def control_shift(self, gear_up, gear_down):
-        # Check documentation for gearbox implementation
-        pass
+        if identifier == "Gas":
+            self.drive.value = data
+        if identifier == "SWA":
+            self.steer.value = data

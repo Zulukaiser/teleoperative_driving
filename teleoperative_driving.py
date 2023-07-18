@@ -3,12 +3,12 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtWidgets import QWidget, QApplication, QLabel
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, Qt, QThread
+from identifier_mapping import TDTP_IDENTIFIERS
+from tdtp import TDTP
 import cv2, imutils, socket, sys, ctypes, fanatec_hid, time, base64, urllib
 import numpy as np
 
-
-class _CONTROLLER_DB_STRUCT(ctypes.Structure):
-    _fields_ = [("channel", ctypes.c_double * 8)]
+tdtp_handle = TDTP()
 
 
 class ControlsThread(QThread):
@@ -17,50 +17,57 @@ class ControlsThread(QThread):
     def __init__(self):
         super().__init__()
         self._run_flag = True
-        self.controller_db = _CONTROLLER_DB_STRUCT()
         self.controller = fanatec_hid.ControlInput()
-        self.controller_db_dict = {
-            "Gas": self.controller_db.channel[0],
-            "Brake": self.controller_db.channel[1],
-            "SWA": self.controller_db.channel[2],
-            "Lowbeam": self.controller_db.channel[3],
-            "Highbeam": self.controller_db.channel[4],
-            "Horn": self.controller_db.channel[5],
-            "Indicator_L": self.controller_db.channel[6],
-            "Indicator_R": self.controller_db.channel[7],
-        }
+        self.get_packet_loss_time = time.time() * 1000 + 1000
 
     def run(self):
+        self.control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
+        self.control_socket.bind(("0.0.0.0", 50007))
+        self.host_ip = "192.168.178.35"
+        # self.host_ip = "169.254.117.19"
+        self.host_port = 50007
+        message = b"Initializing ..."
+        try:
+            self.control_socket.sendto(message, (self.host_ip, self.host_port))
+            self.control_socket.connect_ex(self.host_ip)
+        except:
+            ui.log_console.append("Controls Error")
+            self.stop()
         while self._run_flag:
-            time.sleep(0.1)
-            self.controller_db_dict = self.get_controller_data()
-            self.controls_signal.emit(self.controller_db_dict)
+            time.sleep(0.05)
+            controller_data = self.get_controller_data()
+            for data in controller_data:
+                try:
+                    identifier = [k for k, v in TDTP_IDENTIFIERS.items() if v == data][
+                        0
+                    ]
+                except:
+                    continue
+                value = controller_data[data]
+                try:
+                    message = tdtp_handle.assemble(identifier=identifier, data=value)
+                    self.control_socket.sendall(message)
+                except:
+                    continue
+            if self.get_packet_loss_time < time.time():
+                self.get_packet_loss_time = time.time() * 1000 + 1000
+                try:
+                    identifier = [
+                        k for k, v in TDTP_IDENTIFIERS.items() if v == "PACKAGE_LOSS"
+                    ][0]
+                except:
+                    return
+                value = self.tdtp_handle.package_loss_remote
+                message = tdtp_handle.assemble(identifier=identifier, data=value)
+                self.control_socket.sendall(message)
+                self.package_loss = tdtp_handle.get_package_loss()
+            self.controls_signal.emit(controller_data)
 
     def stop(self):
         self._run_flag = False
+        self.control_socket.close()
         self.wait()
-
-    def decode_dict_from_bytes(self):
-        self.controller_db_dict = {
-            "Gas": self.controller_db.channel[0],
-            "Brake": self.controller_db.channel[1],
-            "SWA": self.controller_db.channel[2],
-            "Lowbeam": self.controller_db.channel[3],
-            "Highbeam": self.controller_db.channel[4],
-            "Horn": self.controller_db.channel[5],
-            "Indicator_L": self.controller_db.channel[6],
-            "Indicator_R": self.controller_db.channel[7],
-        }
-
-    def encode_bytes_from_dict(self):
-        self.controller_db.channel[0] = self.controller_db_dict["Gas"]
-        self.controller_db.channel[1] = self.controller_db_dict["Brake"]
-        self.controller_db.channel[2] = self.controller_db_dict["SWA"]
-        self.controller_db.channel[3] = self.controller_db_dict["Lowbeam"]
-        self.controller_db.channel[4] = self.controller_db_dict["Highbeam"]
-        self.controller_db.channel[5] = self.controller_db_dict["Horn"]
-        self.controller_db.channel[6] = self.controller_db_dict["Indicator_L"]
-        self.controller_db.channel[7] = self.controller_db_dict["Indicator_R"]
 
     def get_controller_data(self):
         return self.controller.read()
@@ -150,6 +157,7 @@ class WebcamThread(QThread):
     def stop(self):
         self._run_flag = False
         self.udp_socket.close()
+        self.wait()
 
     def detect_motion(self, frame_count):
         md = SingleMotionDetector(accumWeight=0.1)
@@ -174,6 +182,34 @@ class WebcamThread(QThread):
             total += 1
             output_frame = frame.copy()
             self.udp_webcam_signal.emit(output_frame)
+
+
+class TelemetryThread(QThread):
+    telemetry_signal = pyqtSignal(dict)
+
+    def __init__(self):
+        super().__init__()
+        self._run_flag = True
+
+    def run(self):
+        self.telemetry_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.telemetry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
+        self.telemetry_socket.bind(("0.0.0.0", 50008))
+        self.host_ip = "192.168.178.35"
+        # self.host_ip = "169.254.117.19"
+        self.host_port = 50008
+        message = b"Initializing ..."
+        try:
+            self.telemetry_socket.sendto(message, (self.host_ip, self.host_port))
+        except:
+            ui.log_console.append("No Webcam Signal")
+            self.stop()
+        while self._run_flag:
+            message_raw = self.telemetry_socket.recv(26)
+            message = tdtp_handle.disassemble(message_raw)
+            if not message:
+                continue
+            self.telemetry_signal.emit({TDTP_IDENTIFIERS[message[0]]: message[1]})
 
 
 class Ui_window_title(object):
@@ -418,6 +454,91 @@ class Ui_window_title(object):
         self.latency_one_way_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
         self.latency_one_way_value.setGeometry(QtCore.QRect(1600, 790, 161, 31))
         self.latency_one_way_value.setObjectName("latency_one_way_value")
+
+        self.imu_ax_label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.imu_ax_label.setGeometry(QtCore.QRect(1500, 940, 161, 21))
+        self.imu_ax_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeading
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.imu_ax_label.setObjectName("imu_ax_label")
+        self.imu_ax_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
+        self.imu_ax_value.setGeometry(QtCore.QRect(1600, 940, 161, 31))
+        self.imu_ax_value.setObjectName("imu_ax_value")
+
+        self.imu_ay_label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.imu_ay_label.setGeometry(QtCore.QRect(1500, 970, 161, 21))
+        self.imu_ay_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeading
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.imu_ay_label.setObjectName("imu_ay_label")
+        self.imu_ay_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
+        self.imu_ay_value.setGeometry(QtCore.QRect(1600, 970, 161, 31))
+        self.imu_ay_value.setObjectName("imu_ay_value")
+
+        self.imu_az_label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.imu_az_label.setGeometry(QtCore.QRect(1500, 1000, 161, 21))
+        self.imu_az_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeading
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.imu_az_label.setObjectName("imu_az_label")
+        self.imu_az_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
+        self.imu_az_value.setGeometry(QtCore.QRect(1600, 1000, 161, 31))
+        self.imu_az_value.setObjectName("imu_az_value")
+
+        self.imu_yaw_label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.imu_yaw_label.setGeometry(QtCore.QRect(1500, 1030, 161, 21))
+        self.imu_yaw_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeading
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.imu_yaw_label.setObjectName("imu_yaw_label")
+        self.imu_yaw_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
+        self.imu_yaw_value.setGeometry(QtCore.QRect(1600, 1030, 161, 31))
+        self.imu_yaw_value.setObjectName("imu_yaw_value")
+
+        self.imu_pitch_label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.imu_pitch_label.setGeometry(QtCore.QRect(1500, 1060, 161, 21))
+        self.imu_pitch_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeading
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.imu_pitch_label.setObjectName("imu_pitch_label")
+        self.imu_pitch_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
+        self.imu_pitch_value.setGeometry(QtCore.QRect(1600, 1060, 161, 31))
+        self.imu_pitch_value.setObjectName("imu_pitch_value")
+
+        self.imu_roll_label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.imu_roll_label.setGeometry(QtCore.QRect(1500, 1090, 161, 21))
+        self.imu_roll_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeading
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.imu_roll_label.setObjectName("imu_roll_label")
+        self.imu_roll_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
+        self.imu_roll_value.setGeometry(QtCore.QRect(1600, 1090, 161, 31))
+        self.imu_roll_value.setObjectName("imu_roll_value")
+
+        self.batt_u_label = QtWidgets.QLabel(parent=self.centralwidget)
+        self.batt_u_label.setGeometry(QtCore.QRect(1500, 1120, 161, 21))
+        self.batt_u_label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeading
+            | QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        self.batt_u_label.setObjectName("batt_u_label")
+        self.batt_u_value = QtWidgets.QTextBrowser(parent=self.centralwidget)
+        self.batt_u_value.setGeometry(QtCore.QRect(1600, 1120, 161, 31))
+        self.batt_u_value.setObjectName("batt_u_value")
+
         self.latency_two_way_label = QtWidgets.QLabel(parent=self.centralwidget)
         self.latency_two_way_label.setGeometry(QtCore.QRect(1600, 820, 161, 21))
         self.latency_two_way_label.setAlignment(
@@ -470,12 +591,28 @@ class Ui_window_title(object):
             "brake": {"state": 0, "pin": 18},
         }
 
+        self.tdtp_handle = TDTP(master=True)
+        self.get_packet_loss_time = time.time() * 1000 + 1000
+        self.package_loss = 0
+
+        self.imu_ax = 0
+        self.imu_ay = 0
+        self.imu_az = 0
+        self.imu_yaw = 0
+        self.imu_roll = 0
+        self.imu_pitch = 0
+        self.batt_u = 0
+
         self.time_epoch_obj = time.gmtime(0)
         self.time_epoch = time.asctime(self.time_epoch_obj)
 
         self.controller_thread = ControlsThread()
         self.controller_thread.controls_signal.connect(self.handle_controller)
         self.controller_thread.start()
+
+        self.telemetry_thread = TelemetryThread()
+        self.telemetry_thread.telemetry_signal.connect(self.get_udp_message)
+        self.telemetry_thread.start()
 
         self.retranslateUi(window_title)
 
@@ -495,8 +632,15 @@ class Ui_window_title(object):
         ip = self.ip_input.text()
         port = self.port_input.text()
         if self.valid_ip(ip, False) and self.valid_port(port, False):
-            port = int(port)
-            self.check_connection(ip, port)
+            self.controls_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.controls_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 26)
+            self.controls_socket.bind((ip, 50007))
+            self.webcam_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.webcam_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65535)
+            self.webcam_socket.bind((ip, 9999))
+            self.telemetry_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.telemetry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
+            self.telemetry_socket.bind((ip, 50008))
 
     def on_establish_connection_pressed(self):
         ip = self.ip_input.text()
@@ -567,16 +711,8 @@ class Ui_window_title(object):
             self.log_console.append(f"Controls activated")
 
     def check_connection(self, ip, port):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(5)
-        response = sock.connect_ex((ip, port))
-        sock.close()
-        if response == 0:
-            self.log_console.append(f"Connection established")
-            self.connection_status.setStyleSheet("background-color: green")
-        else:
-            self.log_console.append(f"Host on {ip}:{port} is not available")
-            self.connection_status.setStyleSheet("background-color: red")
+        self.log_console.append(f"Connection established")
+        self.connection_status.setStyleSheet("background-color: green")
 
     def valid_ip(self, ip, log):
         parts = ip.split(".")
@@ -644,6 +780,15 @@ class Ui_window_title(object):
         self.latency_one_way_label.setText(
             _translate("window_title", "Latency 1-way [ms]:")
         )
+
+        self.imu_ax_label.setText(_translate("window_title", "ax [m/s^2]:"))
+        self.imu_ay_label.setText(_translate("window_title", "ay [m/s^2]:"))
+        self.imu_az_label.setText(_translate("window_title", "az [m/s^2]:"))
+        self.imu_yaw_label.setText(_translate("window_title", "Yaw [°]:"))
+        self.imu_pitch_label.setText(_translate("window_title", "Pitch [°]:"))
+        self.imu_roll_label.setText(_translate("window_title", "Roll [°]:"))
+        self.batt_u_label.setText(_translate("window_title", "Batt [V]:"))
+
         self.latency_two_way_label.setText(
             _translate("window_title", "Latency 2-way [ms]:")
         )
@@ -736,7 +881,6 @@ class Ui_window_title(object):
             * controller_data["SWA"]
             * 90.0
         )  # delta = sign(swa) * swa^2 * 90°
-        # do the actual controls
 
     def rotate_steering_wheel(self, angle):
         pixmap = QtGui.QPixmap(self.steering_wheel_image).scaled(256, 256)
@@ -746,6 +890,37 @@ class Ui_window_title(object):
 
     def get_time(self):
         return round(time.time() * 1000)
+
+    def get_udp_message(self, identifier, data):
+        self.latency_one_way_value.setText(str(tdtp_handle.latency / 2))
+        self.latency_two_way_value.setText(str(tdtp_handle.latency))
+        identifier = TDTP_IDENTIFIERS[identifier]
+        match identifier:
+            case "PACKAGE_LOSS":
+                return
+            case "IMU_AX":
+                self.imu_ax = data
+                self.imu_ax_value.setText(str(self.imu_ax))
+            case "IMU_AY":
+                self.imu_ay = data
+                self.imu_ay_value.setText(str(self.imu_ay))
+            case "IMU_AZ":
+                self.imu_az = data
+                self.imu_az_value.setText(str(self.imu_az))
+            case "IMU_YAW":
+                self.imu_yaw = data
+                self.imu_yaw_value.setText(str(self.imu_yaw))
+            case "IMU_PITCH":
+                self.imu_pitch = data
+                self.imu_pitch_value.setText(str(self.imu_pitch))
+            case "IMU_ROLL":
+                self.imu_roll = data
+                self.imu_roll_value.setText(str(self.imu_roll))
+            case "BATT_U":
+                self.batt_u = data
+                self.batt_u_value.setText(str(self.batt_u))
+            case _:
+                return
 
 
 if __name__ == "__main__":

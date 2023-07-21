@@ -2,7 +2,6 @@ import cv2, imutils, socket, threading
 import numpy as np
 import time
 import base64
-from udpStructures import VehicleStruct, ControlStruct
 from vehicle import Vehicle
 from gpiozero import Servo
 from tdtp import TDTP
@@ -12,10 +11,6 @@ _video_flag = False
 steering_servo = Servo(12)
 driving_servo = Servo(13)
 tdtp_handle = TDTP()
-
-
-def map_control_to_vehicle_struct(control_struct: ControlStruct):
-    pass
 
 
 def udp_send_webcam():

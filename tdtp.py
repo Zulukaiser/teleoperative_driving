@@ -4,6 +4,7 @@
 import time
 import struct
 from crc8 import crc8
+from identifier_mapping import TDTP_IDENTIFIERS
 
 
 class TDTP(object):
@@ -58,7 +59,7 @@ class TDTP(object):
         crc_check = self.getcrc(msg[1:9]).encode()
         self.package_loss_remote += package_id - (self.package_id_remote + 1.0)
         self.package_id_remote = package_id
-        if identifier == 16:
+        if TDTP_IDENTIFIERS[identifier] == "PACKAGE_LOSS":
             self.package_loss = data
         if self.master:
             self.latency = round(time.time() * 1000) - timestamp

@@ -51,6 +51,8 @@ class TDTP(object):
         return msg
 
     def disassemble(self, msg: bytes):
+        if len(msg) != 26:
+            return False
         identifier = int.from_bytes(msg[:1], "big")
         data = struct.unpack("d", msg[1:9])[0]
         crc = msg[9:11]

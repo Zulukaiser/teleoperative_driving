@@ -2,7 +2,9 @@ numpy
 imutils
 scikit-build
 cmake
-opencv-python
 PyQt6
 gpiozero
 pygame
+pyrplidar
+smbus2
+opencv-python

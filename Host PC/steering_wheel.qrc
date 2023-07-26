@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="steering_wheel">
+    <file>steering_wheel.png</file>
+  </qresource>
+</RCC>

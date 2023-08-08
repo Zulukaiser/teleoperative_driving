@@ -31,7 +31,7 @@ Also some actuators and peripherals were fitted to make the vehicle more realist
 
 The power distribution is realized by using a DEBO DCDC DOWN 7 Step-Down-Converter which regulates the LiPo 11.1V to 6.5V, supplying the steering servo, and a DEBO DCDC DOWN 2 which regulates the 6.5V to 5V for the Raspberry Pi and another generic LM2596S DC-DC Step-Down Converter converting 6.5V to 5V for the peripherals.
 
-For further information see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/Documentation/Hardware)
+For further information see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/tree/main/Documentation/Hardware)
 
 ### 2. Host PC <a name="concept-host">
 The host PC is a generic Windows 11 PC with a Fanatec Podium Wheel Base DD2 Steering Wheel and Fanatec USB Pedals. Python is installed and th host PC will run the GUI for the teleoperated driving program.
@@ -39,7 +39,7 @@ The host PC is a generic Windows 11 PC with a Fanatec Podium Wheel Base DD2 Stee
 ## Software <a name="software">
 The software for this project can be divided into two main branches. First the software that runs on the host PC which includes the GUI, communication scripts, a communication protocol for teleoperated driving and a driver for reading the steering wheel and pedal inputs. The second branch is the Raspberry Pi. Software for the Raspberry Pi includes drivers for the peripherals such as the IMU and the Lidar as welll as communication scripts, the teleoperated driving protocol and a driver for controlling the vehicle itself.
 
-For further information see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/Documentation/Software)
+For further information see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/tree/main/Documentation/Software)
 
 ### 1. Host PC <a name="software-host">
 Files on the Host PC:

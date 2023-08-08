@@ -8,6 +8,43 @@ from identifier_mapping import TDTP_IDENTIFIERS
 
 
 class TDTP(object):
+    """Teleoperated Dirving Transfer Protocol for UDP communication
+
+    This class provides functionality for packet loss and latency recording for UDP.
+    The class also provides functionality for packing and unpacking messages. Overall this
+    class extends the UDP Protocol with latency measuring and packet loss capturing.
+
+    Attributes:
+    -----------
+    package_id : int
+        increasing counter for every message that gets sent
+    package_id_remote : int
+        increasing counter for every message that gets received
+    package_loss : int
+        increasing counter for difference between received package_id and current package_id_remote
+    package_loss_remote : int
+        value received from remote host via message
+    timestamp_host : int
+        timestamp in milliseconds
+    master : bool
+        True if host is master in communication, False if host is slave in communication
+    crc_object : object crc8()
+        crc8() object to calculate crc8 checksums
+    latency : int
+        communication delay in milliseconds
+
+    Methods:
+    --------
+    assemble(identifier, data):
+        Gets an identifier for the message and data. Assembles a byte string ready for sending via UDP
+        Also calculates the checksum for the data and adds a timestamp and unique package_id
+        to the message. Returns the byte string
+    disassemble(msg):
+        Gets a byte string and disassembles it into the corresponding variables for message
+        identifier, data, package_id, checksum and timestamp. Checks if checksum is correct
+        and returns a tuple with identifier, data, package_id and timestamp.
+        Keeps track of package ids and package loss
+    """
     def __init__(self, master=False):
         self.package_id = 0
         self.package_id_remote = 0

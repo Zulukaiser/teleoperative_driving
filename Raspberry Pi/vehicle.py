@@ -4,6 +4,12 @@ from identifier_mapping import TDTP_IDENTIFIERS
 
 
 class Vehicle(object):
+    """A controller class for the Traxxas TRX4 Model
+    
+    This class contains Raspberry Pi Pin mapping and functions to control
+    the Traxxas TRX4 Model via a Raspberry Pi. Steering and driving functionality
+    is given as well as a self made lighting assembly with an additional horn.
+    """
     def __init__(self):
         self.indicator_left = 23
         self.indicator_right = 24
@@ -32,7 +38,18 @@ class Vehicle(object):
         self.drive = Servo(self.driving)
         self.steer = Servo(self.steering)
 
-    def control_vehicle(self, control_data):
+    def control_vehicle(self, control_data: tuple) -> None:
+        """Function for controlling the TRX4's lighting system, steering, driving and the horn.
+
+        Model control with control_data as instructions of what functionality and what values
+        
+        Parameters:
+        -----------
+        control_data : tuple()
+            A tuple that contains the identifier (int), data (any), package_id (int) and timestamp (int)
+        
+        return: None
+        """
         identifier = TDTP_IDENTIFIERS[control_data[0]]
         data = control_data[1]
         if identifier == "Lowbeam" and data > 0:

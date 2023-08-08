@@ -5,12 +5,13 @@ from identifier_mapping import TDTP_IDENTIFIERS
 
 class Vehicle(object):
     def __init__(self):
-        self.indicator_left = 11
-        self.indicator_right = 14
-        self.high_beam = 15
-        self.low_beam = 16
-        self.brake_lights = 18
-        self.horn = 19
+        self.indicator_left = 23
+        self.indicator_right = 24
+        self.day_light = 25
+        self.high_beam = 7
+        self.low_beam = 8
+        self.brake_lights = 1
+        self.horn = 4
         self.driving = 12
         self.steering = 13
 

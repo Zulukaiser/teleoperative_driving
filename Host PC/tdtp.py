@@ -45,9 +45,7 @@ class TDTP(object):
             data_bytes = self.float_to_hex(float(self.package_loss_remote))
         crc = self.getcrc(data_bytes).encode()
 
-        msg = b"".join(
-            [identifier_bytes, data_bytes, crc, package_id_bytes, timestamp_bytes]
-        )
+        msg = b"".join([identifier_bytes, data_bytes, crc, package_id_bytes, timestamp_bytes])
         return msg
 
     def disassemble(self, msg: bytes):
@@ -77,6 +75,4 @@ class TDTP(object):
             return False
 
     def get_package_loss(self) -> float:
-        return (self.package_loss_remote + self.package_loss) / (
-            self.package_id + self.package_id_remote
-        )
+        return (self.package_loss_remote + self.package_loss) / (self.package_id + self.package_id_remote)

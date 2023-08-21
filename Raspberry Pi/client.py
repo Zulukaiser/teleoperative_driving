@@ -1,6 +1,5 @@
 import cv2, imutils, socket, threading
-import numpy as np
-import time
+
 import base64
 from pyrplidar import PyRPlidar
 from vehicle import Vehicle
@@ -11,8 +10,6 @@ from identifier_mapping import TDTP_IDENTIFIERS
 
 BUFF_SIZE = 65536
 _video_flag = False
-steering_servo = Servo(12)
-driving_servo = Servo(13)
 tdtp_handle = TDTP()
 lidar_start = False
 
@@ -96,25 +93,17 @@ def udp_send_telemetry():
     socket_address = (socket_ip, socket_port)
     telemetry_socket.bind(socket_address)
     imu = IMU()
+    msg, server_address = telemetry_socket.recvfrom(26)
+    print("Got telemetry connection from: ", server_address)
 
     while True:
         # Get Sensor data and Telemetry
         accelerations = imu.get_acceleration()
         for accl in accelerations:
-            identifier = None
-            data = None
-            match accl:
-                case "IMU_AX":
-                    data = accelerations[accl]
-                    identifier = [k for k, v in TDTP_IDENTIFIERS.items() if v == accl][0]
-                case "IMU_AY":
-                    data = accelerations[accl]
-                    identifier = [k for k, v in TDTP_IDENTIFIERS.items() if v == accl][0]
-                case "IMU_AZ":
-                    data = accelerations[accl]
-                    identifier = [k for k, v in TDTP_IDENTIFIERS.items() if v == accl][0]
-                case _:
-                    continue
+            if accl not in ["IMU_AX", "IMU_AY", "IMU_AZ"]:
+                continue
+            identifier = [k for k, v in TDTP_IDENTIFIERS.items() if v == accl][0]
+            data = accelerations[accl]
                 
             if identifier != None and data != None:
                 message = tdtp_handle.assemble(identifier=identifier, data=data)
@@ -132,3 +121,6 @@ if __name__ == "__main__":
     webcam_thread.start()
     control_thread.start()
     telemetry_thread.start()
+
+    while True:
+        pass

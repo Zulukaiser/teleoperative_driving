@@ -1,22 +1,18 @@
 import cv2, imutils, socket, threading
-
 import base64
-from pyrplidar import PyRPlidar
 from vehicle import Vehicle
-from gpiozero import Servo
 from tdtp import TDTP
 from DEBO_SENS_ACC3 import IMU
 from identifier_mapping import TDTP_IDENTIFIERS
 
 BUFF_SIZE = 65536
-_video_flag = False
+_video_flag = True
 tdtp_handle = TDTP()
-lidar_start = False
+vehicle = Vehicle()
 
 
 def udp_send_webcam():
     global _video_flag
-    global lidar_start
     webcam_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     webcam_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFF_SIZE)
     socket_ip = "0.0.0.0"
@@ -26,26 +22,15 @@ def udp_send_webcam():
 
     vid = cv2.VideoCapture(0)
 
-    lidar = PyRPlidar()
-    lidar.connect(port="/dev/ttyUSB0", baudrate=256000, timeout=3)
-
-    print("Lidar info: ", lidar.get_info())
-    print("Lidar health: ", lidar.get_health())
-
-    lidar_thread = threading.Thread(target=lidar.start_scan, args=())
-    lidar_thread.daemon = True
-
     while True:
         msg, server_address = webcam_socket.recvfrom(BUFF_SIZE)
         print("Got Connection from: ", server_address)
         WIDTH = 400
-        while vid.isOpen() and _video_flag:
-            if lidar_start:
-                lidar_thread.start()
-            else:
-                lidar_thread.join()
-
-            _, frame = vid.read()
+        while _video_flag:
+            try:
+                _, frame = vid.read()
+            except:
+                continue
             frame = imutils.resize(frame, width=WIDTH)
             encoded, buffer = cv2.imencode(
                 ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80]
@@ -60,29 +45,22 @@ def udp_send_webcam():
 
 def udp_receive_controls():
     global _video_flag
-    global lidar_start
-    vehicle = Vehicle()
     control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
     socket_ip = "0.0.0.0"
     socket_port = 50007
     socket_address = (socket_ip, socket_port)
     control_socket.bind(socket_address)
+    vehicle.day_light_output.on()
 
     while True:
         message_raw, server_address = control_socket.recvfrom(26)
         message = tdtp_handle.disassemble(message_raw)
         if not message:
             continue
-        elif message[0] == [k for k, v in TDTP_IDENTIFIERS.items() if v == "Lidar"][0]:
-            if message[1] != 0:
-                lidar_start = True
-            else:
-                lidar_start = False
         # Controls of vehicle
         else:
             vehicle.control_vehicle(message)
-
 
 def udp_send_telemetry():
     global _video_flag
@@ -93,6 +71,7 @@ def udp_send_telemetry():
     socket_address = (socket_ip, socket_port)
     telemetry_socket.bind(socket_address)
     imu = IMU()
+
     msg, server_address = telemetry_socket.recvfrom(26)
     print("Got telemetry connection from: ", server_address)
 
@@ -107,8 +86,8 @@ def udp_send_telemetry():
                 
             if identifier != None and data != None:
                 message = tdtp_handle.assemble(identifier=identifier, data=data)
-                telemetry_socket.sendall(message)
-
+                ret = telemetry_socket.sendto(message, server_address)
+                print(ret)
 
 if __name__ == "__main__":
     webcam_thread = threading.Thread(target=udp_send_webcam)
@@ -118,9 +97,24 @@ if __name__ == "__main__":
     telemetry_thread = threading.Thread(target=udp_send_telemetry)
     telemetry_thread.daemon = True
 
+    vehicle.drive.value = 0.1
+
     webcam_thread.start()
     control_thread.start()
     telemetry_thread.start()
 
-    while True:
-        pass
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        webcam_thread.join()
+        control_thread.join()
+        vehicle.horn_output.off()
+        vehicle.low_beam_output.off()
+        vehicle.brake_lights_output.off()
+        vehicle.day_light_output.off()
+        vehicle.high_beam_output.off()
+        vehicle.indicator_left_output.off()
+        vehicle.indicator_right_output.off()
+        vehicle.drive.value = 0.0
+        vehicle.steer.value = 0.0

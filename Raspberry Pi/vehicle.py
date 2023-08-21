@@ -33,6 +33,7 @@ class Vehicle(object):
         self.high_beam_output = DigitalOutputDevice(pin=self.high_beam)
         self.low_beam_output = DigitalOutputDevice(pin=self.low_beam)
         self.brake_lights_output = DigitalOutputDevice(pin=self.brake_lights)
+        self.day_light_output = DigitalOutputDevice(pin=self.day_light)
         self.horn_output = Buzzer(pin=self.horn)
 
         self.drive = Servo(self.driving)
@@ -93,7 +94,7 @@ class Vehicle(object):
                 self.horn_status = False
         if identifier == "Brake" and data > 0.05:
             self.brake_lights_output.on()
-        elif identifier == "Lowbeam" and data <= 0.05:
+        elif identifier == "Brake" and data <= 0.05:
             self.brake_lights_output.off()
 
         if identifier == "Gas":

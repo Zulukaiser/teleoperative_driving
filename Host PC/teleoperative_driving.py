@@ -5,7 +5,7 @@ from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtCore import pyqtSignal, pyqtSlot, Qt, QThread
 from identifier_mapping import TDTP_IDENTIFIERS
 from tdtp import TDTP
-import cv2, imutils, socket, sys, ctypes, fanatec_hid, time, base64, urllib
+import cv2, imutils, socket, sys, ctypes, fanatec_hid, time, base64, urllib, gamepadReading
 import numpy as np
 
 tdtp_handle = TDTP()
@@ -18,24 +18,43 @@ class ControlsThread(QThread):
         super().__init__()
         self._run_flag = True
         self.ai_overlay = ai_overlay
+        self.xbox = True
+        self.xbox_old = self.xbox
         self.ai_overlay_status = self.ai_overlay.isChecked()
-        self.controller = fanatec_hid.ControlInput()
+        self.controller = None
+        if self.xbox:
+            self.controller = gamepadReading.XboxController()
+        else:
+            self.controller = fanatec_hid.ControlInput()
         self.get_packet_loss_time = time.time() * 1000 + 1000
 
     def run(self):
         self.control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
         self.control_socket.bind(("0.0.0.0", 50007))
-        self.host_ip = "192.168.178.35"
+        self.host_ip = "192.168.178.87"
         self.host_port = 50007
         message = b"Initializing ..."
         try:
             self.control_socket.sendto(message, (self.host_ip, self.host_port))
-            self.control_socket.connect_ex(self.host_ip)
-        except:
+            self.control_socket.connect_ex((self.host_ip, self.host_port))
+        except TypeError as e:
             ui.log_console.append("Controls Error")
+            print(e)
             self.stop()
         while self._run_flag:
+            if self.xbox and (self.xbox != self.xbox_old):
+                try:
+                    self.controller = gamepadReading.XboxController()
+                except:
+                    continue
+                self.xbox_old = self.xbox
+            elif not self.xbox and (self.xbox != self.xbox_old):
+                try:
+                    self.controller = fanatec_hid.ControlInput()
+                except:
+                    continue
+                self.xbox_old = self.xbox
             time.sleep(0.05)
             controller_data = self.get_controller_data()
             for data in controller_data:
@@ -130,7 +149,7 @@ class WebcamThread(QThread):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.BUFF_SIZE)
         self.udp_socket.bind(("0.0.0.0", 9999))
-        self.host_ip = "192.168.178.35"
+        self.host_ip = "192.168.178.87"
         # self.host_ip = "169.254.117.19"
         self.host_port = 9999
         message = b"Initializing ..."
@@ -187,7 +206,7 @@ class WebcamThread(QThread):
 
 
 class TelemetryThread(QThread):
-    telemetry_signal = pyqtSignal(dict)
+    telemetry_signal = pyqtSignal(str, float)
 
     def __init__(self):
         super().__init__()
@@ -197,21 +216,25 @@ class TelemetryThread(QThread):
         self.telemetry_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.telemetry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
         self.telemetry_socket.bind(("0.0.0.0", 50008))
-        self.host_ip = "192.168.178.35"
+        self.host_ip = "192.168.178.87"
         # self.host_ip = "169.254.117.19"
         self.host_port = 50008
         message = b"Initializing ..."
         try:
             self.telemetry_socket.sendto(message, (self.host_ip, self.host_port))
         except:
-            ui.log_console.append("No Webcam Signal")
+            ui.log_console.append("No Telemetry Signal")
             self.stop()
         while self._run_flag:
-            message_raw = self.telemetry_socket.recv(26)
+            message_raw = None
+            try:
+                message_raw, _ = self.telemetry_socket.recvfrom(27)
+            except:
+                continue
             message = tdtp_handle.disassemble(message_raw)
             if not message:
                 continue
-            self.telemetry_signal.emit({TDTP_IDENTIFIERS[message[0]]: message[1]})
+            self.telemetry_signal.emit(TDTP_IDENTIFIERS[message[0]], message[1])
 
 
 class Ui_window_title(object):
@@ -270,6 +293,25 @@ class Ui_window_title(object):
         self.ai_overlay.setAutoFillBackground(False)
         self.ai_overlay.setIconSize(QtCore.QSize(100, 100))
         self.ai_overlay.setObjectName("ai_overlay")
+
+        self.controller_select = QtWidgets.QCheckBox(parent=self.centralwidget)
+        self.controller_select.setGeometry(QtCore.QRect(40, 1050, 191, 51))
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum
+        )
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.ai_overlay.sizePolicy().hasHeightForWidth())
+        self.controller_select.setSizePolicy(sizePolicy)
+        self.controller_select.setMinimumSize(QtCore.QSize(80, 20))
+        self.controller_select.setBaseSize(QtCore.QSize(0, 0))
+        font = QtGui.QFont()
+        font.setPointSize(20)
+        self.controller_select.setFont(font)
+        self.controller_select.setAutoFillBackground(False)
+        self.controller_select.setIconSize(QtCore.QSize(100, 100))
+        self.controller_select.setObjectName("XBox")
+
         self.connection_status = QtWidgets.QLabel(parent=self.centralwidget)
         self.connection_status.setGeometry(QtCore.QRect(1410, 180, 161, 21))
         palette = QtGui.QPalette()
@@ -622,6 +664,7 @@ class Ui_window_title(object):
         self.establish_connection.clicked.connect(self.on_establish_connection_click)
         self.close_connection.clicked.connect(self.on_close_connection_click)
         self.ai_overlay.clicked.connect(self.clicked_ai_overlay)
+        self.controller_select.clicked.connect(self.clicked_controller_select)
         self.clear_console_button.clicked.connect(self.on_clear_console_click)
         self.SHOW.clicked.connect(self.on_show_webcam_click_start)
         self.activate_controls.clicked.connect(self.on_activate_controls)
@@ -668,6 +711,13 @@ class Ui_window_title(object):
                 self.log_console.append("AI Overlay deactivated")
             except:
                 self.log_console.append("No Video Thread available")
+
+    def clicked_controller_select(self):
+        if self.controller_select.isChecked():
+            self.controller_thread.xbox = True
+        else:
+            self.controller_thread.xbox = False
+
 
     def on_clear_console_click(self):
         self.log_console.clear()
@@ -896,7 +946,6 @@ class Ui_window_title(object):
     def get_udp_message(self, identifier, data):
         self.latency_one_way_value.setText(str(tdtp_handle.latency / 2))
         self.latency_two_way_value.setText(str(tdtp_handle.latency))
-        identifier = TDTP_IDENTIFIERS[identifier]
         match identifier:
             case "PACKAGE_LOSS":
                 return

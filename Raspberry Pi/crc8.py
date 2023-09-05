@@ -20,7 +20,17 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
+"""The crc8 module.
 
+The crc8 module provides the same interface as the hashlib module.
+    https://docs.python.org/2/library/hashlib.html
+
+Some code was copied from here:
+    https://dzone.com/articles/crc8py
+and gave credit "From the PyPy project" and the link
+    http://snippets.dzone.com/posts/show/3543
+
+"""
 
 class crc8(object):
     digest_size = 1
@@ -288,16 +298,35 @@ class crc8(object):
     )
 
     def __init__(self, initial_string=b"", initial_start=0x00):
+        """Create a new crc8 hash instance."""
         self._sum = initial_start
+        self._initial_start = initial_start
         self._update(initial_string)
 
     def update(self, bytes_):
+        """Update the hash object with the string arg.
+
+        Repeated calls are equivalent to a single call with the concatenation
+        of all the arguments: m.update(a); m.update(b) is equivalent
+        to m.update(a+b).
+        """
         self._update(bytes_)
 
     def digest(self):
+        """Return the digest of the bytes passed to the update() method so far.
+
+        This is a string of digest_size bytes which may contain non-ASCII
+        characters, including null bytes.
+        """
         return self._digest()
 
     def hexdigest(self):
+        """Return digest() as hexadecimal string.
+
+        Like digest() except the digest is returned as a string of double
+        length, containing only hexadecimal digits. This may be used to
+        exchange the value safely in email or other non-binary environments.
+        """
         return hex(self._sum)[2:].zfill(2)
 
     def _update(self, bytes_):
@@ -316,6 +345,11 @@ class crc8(object):
         return bytes([self._sum])
 
     def copy(self):
+        """Return a copy ("clone") of the hash object.
+        
+        This can be used to efficiently compute the digests of strings that
+        share a common initial substring.
+        """
         crc = crc8()
         crc._sum = self._sum
         return crc

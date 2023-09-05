@@ -11,6 +11,7 @@ This is the codebase for a demonstrator miniature vehicle. The demonstrator is a
     - [1. Host PC ](#1-host-pc-)
     - [2. Vehicle ](#2-vehicle-)
   - [Getting Started ](#getting-started-)
+  - [Raspberry Pi Access Point ](#raspberry-pi-access-point-)
 
 
 ## Concept <a name="concept">
@@ -31,7 +32,7 @@ Also some actuators and peripherals were fitted to make the vehicle more realist
 
 The power distribution is realized by using a DEBO DCDC DOWN 7 Step-Down-Converter which regulates the LiPo 11.1V to 6.5V, supplying the steering servo, and a DEBO DCDC DOWN 2 which regulates the 6.5V to 5V for the Raspberry Pi and another generic LM2596S DC-DC Step-Down Converter converting 6.5V to 5V for the peripherals.
 
-For further information see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/tree/main/Documentation/Hardware)
+For further information on the hardware see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/tree/main/Documentation/Hardware)
 
 ### 2. Host PC <a name="concept-host">
 The host PC is a generic Windows 11 PC with a Fanatec Podium Wheel Base DD2 Steering Wheel and Fanatec USB Pedals. Python is installed and th host PC will run the GUI for the teleoperated driving program.
@@ -39,7 +40,7 @@ The host PC is a generic Windows 11 PC with a Fanatec Podium Wheel Base DD2 Stee
 ## Software <a name="software">
 The software for this project can be divided into two main branches. First the software that runs on the host PC which includes the GUI, communication scripts, a communication protocol for teleoperated driving and a driver for reading the steering wheel and pedal inputs. The second branch is the Raspberry Pi. Software for the Raspberry Pi includes drivers for the peripherals such as the IMU and the Lidar as welll as communication scripts, the teleoperated driving protocol and a driver for controlling the vehicle itself.
 
-For further information see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/tree/main/Documentation/Software)
+For further information on the software see [Documentation](https://www.github.com/Zulukaiser/teleoperative_driving/tree/main/Documentation/Software)
 
 ### 1. Host PC <a name="software-host">
 Files on the Host PC:
@@ -66,14 +67,27 @@ Files on the Vehicle:
 In order to get started you need to connect the power cable from the 11.1V LiPo with the DEBO DCDC 7 Step-Down Converter via the XT90 connector. Then you need to ssh into the Raspberry Pi with your credentials and change directorys to the workspace directory. Then you can run the *client.py* script.
 
 On Host PC:
+
+To get the IP-Address of the raspberrypi type the following command in your terminal
 ```powershell
-ssh %USER%@IP
+ping raspberrypi
+```
+in order to connect to the raspberrypi type the following command. After connecting you need to type the password
+```powershell
+ssh rp-fzt@10.3.141.1
 ```
 
 On Raspberry Pi:
-```shell
-cd /home/%USER%/tele
+
+Change the working directory to tele
+```bash
+cd tele
 ```
-```shell
+
+Start the python script by typing the following command
+```bash
 python3 client.py
 ```
+
+## Raspberry Pi Access Point <a name="access-point">
+In order to connect to the Raspberry Pi a Ethernet communication is needed. To enhance the range of use, a WiFi connection is required. The Raspberry Pi is configured as an Access Point to generate a WiFi network with the SSID ***"teleoperative"*** and the same as the password. In order to change the SSID or the WiFi password, access to the Access Point is needed. Opening the configuration site for the Access Point is done by going to ***"10.3.141.1"*** and logging in as ***"admin"*** (Password is provided on the Hardware). There you can change the configuration of the RaspAP Access Point to your liking.

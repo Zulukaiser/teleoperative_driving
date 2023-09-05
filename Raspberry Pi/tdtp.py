@@ -48,6 +48,9 @@ class TDTP(object):
         self.package_loss_remote = 0
         self.timestamp_host = 0
         self.master = master
+        self.msg_length = 26
+        if self.master:
+            self.msg_length = 27
         self.crc_object = crc8()
         self.latency = 0
 
@@ -72,7 +75,7 @@ class TDTP(object):
         package_id_bytes = self.package_id.to_bytes(8, "big")
         timestamp_bytes = timestamp.to_bytes(8, "big")
         identifier_bytes = identifier.to_bytes(1, "big")
-        if identifier != 16:
+        if identifier != [k for k, v in TDTP_IDENTIFIERS.items() if v == "PACKAGE_LOSS"][0]:
             data_bytes = self.__float_to_hex(data)
         else:
             data_bytes = self.__float_to_hex(float(self.package_loss_remote))
@@ -82,7 +85,7 @@ class TDTP(object):
         return msg
 
     def disassemble(self, msg: bytes):
-        if len(msg) != 27:
+        if len(msg) != self.msg_length:
             return False
         identifier = int.from_bytes(msg[:1], "big")
         data = struct.unpack("d", msg[1:9])[0]

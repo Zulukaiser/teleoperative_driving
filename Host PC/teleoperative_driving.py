@@ -9,6 +9,7 @@ import cv2, imutils, socket, sys, ctypes, fanatec_hid, time, base64, urllib, gam
 import numpy as np
 
 tdtp_handle = TDTP()
+REMOTE_HOST_IP = "10.3.141.1"
 
 
 class ControlsThread(QThread):
@@ -32,7 +33,7 @@ class ControlsThread(QThread):
         self.control_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.control_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
         self.control_socket.bind(("0.0.0.0", 50007))
-        self.host_ip = "10.3.141.1"
+        self.host_ip = REMOTE_HOST_IP
         self.host_port = 50007
         message = b"Initializing ..."
         try:
@@ -149,7 +150,7 @@ class WebcamThread(QThread):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.BUFF_SIZE)
         self.udp_socket.bind(("0.0.0.0", 9999))
-        self.host_ip = "10.3.141.1"
+        self.host_ip = REMOTE_HOST_IP
         # self.host_ip = "169.254.117.19"
         self.host_port = 9999
         message = b"Initializing ..."
@@ -216,7 +217,7 @@ class TelemetryThread(QThread):
         self.telemetry_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.telemetry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
         self.telemetry_socket.bind(("0.0.0.0", 50008))
-        self.host_ip = "10.3.141.1"
+        self.host_ip = REMOTE_HOST_IP
         # self.host_ip = "169.254.117.19"
         self.host_port = 50008
         message = b"Initializing ..."

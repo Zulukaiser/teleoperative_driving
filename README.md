@@ -64,7 +64,7 @@ Files on the Vehicle:
 | *identifier_mapping.py* | Mapping for message identifiers, contains a dictionary with IDs and names |
 
 ## Getting Started <a name="getting-started">
-In order to get started you need to connect the power cable from the 11.1V LiPo with the DEBO DCDC 7 Step-Down Converter via the XT90 connector. Then you need to ssh into the Raspberry Pi with your credentials and change directorys to the workspace directory. Then you can run the *client.py* script.
+In order to get started you need to connect the power cable from the 11.1V LiPo with the DEBO DCDC 7 Step-Down Converter via the XT90 connector. Then you need to ssh into the Raspberry Pi with your credentials and change directories to the workspace directory. Then you can run the *client.py* script.
 
 On Host PC:
 
@@ -72,7 +72,7 @@ To get the IP-Address of the raspberrypi type the following command in your term
 ```powershell
 ping raspberrypi
 ```
-in order to connect to the raspberrypi type the following command. After connecting you need to type the password
+in order to connect to the raspberrypi type the following command. After connecting you need to type the password provided on the vehicle.
 ```powershell
 ssh rp-fzt@10.3.141.1
 ```
@@ -88,6 +88,17 @@ Start the python script by typing the following command
 ```bash
 python3 client.py
 ```
+Important notice:
+
+DON'T CLOSE THE TERMINAL
+
+After that you can start the *teleoperative_driving.py* script on the host pc. It is important that you start the *client.py* script before the *teleoperative_driving.py* script.
+```powershell
+python teleoperative_driving.py
+```
+You can also start the script via the VS Code Editor
+
+In future updates the *teleoperative_driving.py* script may be converted into an executable for easier handling.
 
 ## Raspberry Pi Access Point <a name="access-point">
 In order to connect to the Raspberry Pi a Ethernet communication is needed. To enhance the range of use, a WiFi connection is required. The Raspberry Pi is configured as an Access Point to generate a WiFi network with the SSID ***"teleoperative"*** and the same as the password. In order to change the SSID or the WiFi password, access to the Access Point is needed. Opening the configuration site for the Access Point is done by going to ***"10.3.141.1"*** and logging in as ***"admin"*** (Password is provided on the Hardware). There you can change the configuration of the RaspAP Access Point to your liking.

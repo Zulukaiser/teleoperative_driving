@@ -8,7 +8,7 @@ from tdtp import TDTP
 import cv2, imutils, socket, sys, ctypes, fanatec_hid, time, base64, urllib, gamepadReading
 import numpy as np
 
-tdtp_handle = TDTP()
+tdtp_handle = TDTP(master=True)
 REMOTE_HOST_IP = "10.3.141.1"
 
 
@@ -19,6 +19,7 @@ class ControlsThread(QThread):
         super().__init__()
         self._run_flag = True
         self.ai_overlay = ai_overlay
+        self.controls_state = False
         self.xbox = True
         self.xbox_old = self.xbox
         self.ai_overlay_status = self.ai_overlay.isChecked()
@@ -56,8 +57,22 @@ class ControlsThread(QThread):
                 except:
                     continue
                 self.xbox_old = self.xbox
+            
             time.sleep(0.05)
-            controller_data = self.get_controller_data()
+
+            if self.controls_state:
+                controller_data = self.get_controller_data()
+            else:
+                controller_data = {
+                    "Gas": 0.0,
+                    "Brake": 0.0,
+                    "SWA": 0.0,
+                    "Lowbeam": False,
+                    "Highbeam": False,
+                    "Horn": False,
+                    "Indicator_L": False,
+                    "Indicator_R": False,
+                    }
             for data in controller_data:
                 try:
                     identifier = [k for k, v in TDTP_IDENTIFIERS.items() if v == data][0]
@@ -85,6 +100,7 @@ class ControlsThread(QThread):
                 message = tdtp_handle.assemble(identifier=identifier, data=int(self.ai_overlay_status))
                 self.control_socket.sendall(message)
             self.controls_signal.emit(controller_data)
+
 
     def stop(self):
         self._run_flag = False
@@ -237,6 +253,11 @@ class TelemetryThread(QThread):
                 continue
             self.telemetry_signal.emit(TDTP_IDENTIFIERS[message[0]], message[1])
 
+    def stop(self):
+        self._run_flag = False
+        self.telemetry_socket.close()
+        self.wait()
+
 
 class Ui_window_title(object):
     def setupUi(self, window_title):
@@ -258,13 +279,6 @@ class Ui_window_title(object):
         self.ip_input.setFont(font)
         self.ip_input.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self.ip_input.setObjectName("ip_input")
-        self.port_input = QtWidgets.QLineEdit(parent=self.centralwidget)
-        self.port_input.setGeometry(QtCore.QRect(1410, 60, 321, 31))
-        font = QtGui.QFont()
-        font.setPointSize(12)
-        self.port_input.setFont(font)
-        self.port_input.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.port_input.setObjectName("port_input")
         self.establish_connection = QtWidgets.QPushButton(parent=self.centralwidget)
         self.establish_connection.setGeometry(QtCore.QRect(1410, 100, 321, 31))
         font = QtGui.QFont()
@@ -296,7 +310,7 @@ class Ui_window_title(object):
         self.ai_overlay.setObjectName("ai_overlay")
 
         self.controller_select = QtWidgets.QCheckBox(parent=self.centralwidget)
-        self.controller_select.setGeometry(QtCore.QRect(40, 1050, 191, 51))
+        self.controller_select.setGeometry(QtCore.QRect(1410, 50, 191, 51))
         sizePolicy = QtWidgets.QSizePolicy(
             QtWidgets.QSizePolicy.Policy.Maximum, QtWidgets.QSizePolicy.Policy.Maximum
         )
@@ -629,14 +643,13 @@ class Ui_window_title(object):
 
         self.controls_state = False
         self.lights = {
-            "low_beam": {"state": 0, "pin": 16},
-            "high_beam": {"state": 0, "pin": 15},
-            "indicator_left": {"state": 0, "pin": 11},
-            "indicator_right": {"state": 0, "pin": 13},
-            "brake": {"state": 0, "pin": 18},
+            "low_beam": {"state": 0, "z": 0},
+            "high_beam": {"state": 0, "z": 0},
+            "indicator_left": {"state": 0, "z": 0},
+            "indicator_right": {"state": 0, "z": 0},
+            "brake": {"state": 0, "z": 0},
         }
 
-        self.tdtp_handle = TDTP(master=True)
         self.get_packet_loss_time = time.time() * 1000 + 1000
         self.package_loss = 0
 
@@ -650,14 +663,6 @@ class Ui_window_title(object):
 
         self.time_epoch_obj = time.gmtime(0)
         self.time_epoch = time.asctime(self.time_epoch_obj)
-
-        self.controller_thread = ControlsThread(self.ai_overlay)
-        self.controller_thread.controls_signal.connect(self.handle_controller)
-        self.controller_thread.start()
-
-        self.telemetry_thread = TelemetryThread()
-        self.telemetry_thread.telemetry_signal.connect(self.get_udp_message)
-        self.telemetry_thread.start()
 
         self.retranslateUi(window_title)
 
@@ -676,28 +681,34 @@ class Ui_window_title(object):
 
     def on_establish_connection_click(self):
         ip = self.ip_input.text()
-        port = self.port_input.text()
-        if self.valid_ip(ip, False) and self.valid_port(port, False):
-            self.controls_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.controls_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 26)
-            self.controls_socket.bind((ip, 50007))
-            self.webcam_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.webcam_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65535)
-            self.webcam_socket.bind((ip, 9999))
-            self.telemetry_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.telemetry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
-            self.telemetry_socket.bind((ip, 50008))
+        if self.valid_ip(ip, False):
+            self.controller_thread = ControlsThread(self.ai_overlay)
+            self.controller_thread.controls_signal.connect(self.handle_controller)
+            self.controller_thread.start()
+
+            self.telemetry_thread = TelemetryThread()
+            self.telemetry_thread.telemetry_signal.connect(self.get_udp_message)
+            self.telemetry_thread.start()
+            self.log_console.append(f"Connection to {ip} established")
+            self.connection_status.setStyleSheet("background-color: green")
+
 
     def on_establish_connection_pressed(self):
         ip = self.ip_input.text()
-        port = self.port_input.text()
-        if self.valid_ip(ip, True) and self.valid_port(port, True):
-            self.log_console.append(f"Connecting to {ip}:{port} ...")
-            port = int(port)
+        if self.valid_ip(ip, True):
+            self.log_console.append(f"Connecting to {ip} ...")
 
     def on_close_connection_click(self):
-        self.log_console.append("Closing connection ...\nConnection closed")
-        self.connection_status.setStyleSheet("background-color: red")
+        self.log_console.append("Closing connection ...")
+        try:
+            self.thread.stop()
+            self.controller_thread.stop()
+            self.telemetry_thread.stop()
+            self.connection_status.setStyleSheet("background-color: red")
+        except:
+            self.log_console.append("Error in closing connection")
+            return
+        self.log_console.append("Connection closed")
 
     def clicked_ai_overlay(self):
         if self.ai_overlay.isChecked():
@@ -715,10 +726,15 @@ class Ui_window_title(object):
 
     def clicked_controller_select(self):
         if self.controller_select.isChecked():
-            self.controller_thread.xbox = True
+            try:
+                self.controller_thread.xbox = True
+            except:
+                self.log_console.append("No connection!")
         else:
-            self.controller_thread.xbox = False
-
+            try:
+                self.controller_thread.xbox = False
+            except:
+                self.log_console.append("No connection!")
 
     def on_clear_console_click(self):
         self.log_console.clear()
@@ -754,18 +770,20 @@ class Ui_window_title(object):
         self.webcam_preview.setText("No Video")
 
     def on_activate_controls(self):
-        if self.controls_state:
-            self.controls_state = False
-            self.activate_controls.setText("Activate Controls")
-            self.log_console.append(f"Controls deactivated")
-        else:
-            self.controls_state = True
-            self.activate_controls.setText("Deactivate Controls")
-            self.log_console.append(f"Controls activated")
+        try:
+            if self.controller_thread.controls_state:
+                self.controller_thread.controls_state = False
+                self.activate_controls.setText("Activate Controls")
+                self.log_console.append("Controls deactivated")
+            elif not self.controller_thread.controls_state:
+                self.controller_thread.controls_state = True
+                self.activate_controls.setText("Deactivate Controls")
+                self.log_console.append("Controls activated")
+        except:
+            self.log_console.append("No connection!")
 
     def check_connection(self, ip, port):
         self.log_console.append(f"Connection established")
-        self.connection_status.setStyleSheet("background-color: green")
 
     def valid_ip(self, ip, log):
         parts = ip.split(".")
@@ -787,30 +805,16 @@ class Ui_window_title(object):
                 return False
         return True
 
-    def valid_port(self, port, log):
-        try:
-            port = int(port)
-        except ValueError as e:
-            if log:
-                self.log_console.append("Invalid Port! " + str(e))
-                self.log_console.append("Port must be a number!")
-            return False
-        if 0 <= port <= 65535:
-            return True
-        if log:
-            self.log_console.append(f"Invalid Port: {port} not in range(0,65535)")
-        return False
-
     def retranslateUi(self, window_title):
         _translate = QtCore.QCoreApplication.translate
         window_title.setWindowTitle(_translate("window_title", "Teleoperative Driving"))
-        self.ip_input.setPlaceholderText(_translate("window_title", "IP"))
-        self.port_input.setPlaceholderText(_translate("window_title", "Port"))
+        self.ip_input.setPlaceholderText(_translate("window_title", "IP Address"))
         self.establish_connection.setText(
             _translate("window_title", "Establish Connection")
         )
         self.close_connection.setText(_translate("window_title", "Close Connection"))
         self.ai_overlay.setText(_translate("window_title", "AI Overlay"))
+        self.controller_select.setText(_translate("window_title", "XBox Controller"))
         self.connection_status.setText(
             _translate(
                 "window_title",
@@ -882,43 +886,48 @@ class Ui_window_title(object):
 
     def handle_controller(self, controller_data: dict):
         # Update all qt labels
-        if controller_data["Indicator_L"]:
+        if controller_data["Indicator_L"] and not self.lights["indicator_left"]["z"]:
             if not self.lights["indicator_left"]["state"]:
                 self.left_indicator.setStyleSheet("background-color: orange")
                 self.lights["indicator_left"]["state"] = 1
             else:
                 self.left_indicator.setStyleSheet("background-color: white")
                 self.lights["indicator_left"]["state"] = 0
-        if controller_data["Indicator_R"]:
+        self.lights["indicator_left"]["z"] = controller_data["Indicator_L"]
+
+        if controller_data["Indicator_R"] and not self.lights["indicator_right"]["z"]:
             if not self.lights["indicator_right"]["state"]:
                 self.right_indicator.setStyleSheet("background-color: orange")
                 self.lights["indicator_right"]["state"] = 1
             else:
                 self.right_indicator.setStyleSheet("background-color: white")
                 self.lights["indicator_right"]["state"] = 0
-        if controller_data["Lowbeam"]:
+        self.lights["indicator_right"]["z"] = controller_data["Indicator_R"]
+
+        if controller_data["Lowbeam"] and not self.lights["low_beam"]["z"]:
             if not self.lights["low_beam"]["state"]:
-                self.low_beam_indicator.setStyleSheet(
-                    "background-color: green;\ncolor: white"
-                )
+                self.low_beam_indicator.setStyleSheet("background-color: green;\ncolor: white")
                 self.lights["low_beam"]["state"] = 1
             else:
-                self.low_beam_indicator.setStyleSheet(
-                    "background-color: white;\ncolor: black"
-                )
+                self.low_beam_indicator.setStyleSheet("background-color: white;\ncolor: black")
                 self.lights["low_beam"]["state"] = 0
-        if controller_data["Highbeam"]:
+        self.lights["low_beam"]["z"] = controller_data["Lowbeam"]
+
+        if controller_data["Highbeam"] and not self.lights["high_beam"]["z"]:
             if not self.lights["high_beam"]["state"]:
                 self.high_beam.setStyleSheet("background-color: blue;\ncolor: white")
                 self.lights["high_beam"]["state"] = 1
             else:
                 self.high_beam.setStyleSheet("background-color: white;\ncolor: black")
                 self.lights["high_beam"]["state"] = 0
+        self.lights["high_beam"]["z"] = controller_data["Highbeam"]
+
         if controller_data["Brake"] != 0.0:
             self.brake_light.setStyleSheet("background-color: red")
         else:
             self.brake_light.setStyleSheet("background-color: white")
         self.gas_value.setText(str(controller_data["Gas"] * 100.0))
+        self.velocity_value.display(int(controller_data["Gas"] * 30.0))
         self.brake_value.setText(str(controller_data["Brake"] * 100.0))
         self.steering_wheel_angle.setText(
             str(

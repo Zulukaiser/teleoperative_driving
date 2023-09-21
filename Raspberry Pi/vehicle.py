@@ -23,9 +23,13 @@ class Vehicle(object):
         self.steering = 13
 
         self.indicator_left_status = False
+        self.prev_indicator_left_status = False
         self.indicator_right_status = False
+        self.prev_indicator_right_status = False
         self.high_beam_status = False
+        self.prev_high_beam_status = False
         self.low_beam_status = False
+        self.prev_low_beam_status = False
         self.brake_lights_status = False
         self.horn_status = False
 
@@ -54,38 +58,42 @@ class Vehicle(object):
         """
         identifier = TDTP_IDENTIFIERS[control_data[0]]
         data = control_data[1]
-        if identifier == "Lowbeam" and data > 0:
-            if not self.low_beam_status:
-                self.low_beam_output.on()
-                self.low_beam_status = True
-            else:
-                self.low_beam_output.off()
-                self.low_beam_status = False
-        if identifier == "Highbeam" and data > 0:
-            if not self.high_beam_status:
-                self.high_beam_output.on()
-                self.high_beam_status = True
-            else:
-                self.high_beam_output.off()
-                self.high_beam_status = False
-        if identifier == "Indicator_R" and data > 0:
-            if not self.indicator_right_status:
-                self.indicator_right_output.blink(
-                    on_time=1, off_time=1, n=None, background=True
-                )
-                self.indicator_right_status = True
-            else:
-                self.indicator_right_output.off()
-                self.indicator_right_status = False
-        if identifier == "Indicator_L" and data > 0:
-            if not self.indicator_left_status:
-                self.indicator_left_output.blink(
-                    on_time=1, off_time=1, n=None, background=True
-                )
-                self.indicator_left_status = True
-            else:
-                self.indicator_left_output.off()
-                self.indicator_left_status = False
+        if identifier == "Lowbeam":
+            if data > 0 and not self.prev_low_beam_status:
+                if not self.low_beam_status:
+                    self.low_beam_output.on()
+                    self.low_beam_status = True
+                else:
+                    self.low_beam_output.off()
+                    self.low_beam_status = False
+            self.prev_low_beam_status = data
+        if identifier == "Highbeam":
+            if data > 0 and not self.prev_high_beam_status:
+                if not self.high_beam_status:
+                    self.high_beam_output.on()
+                    self.high_beam_status = True
+                else:
+                    self.high_beam_output.off()
+                    self.high_beam_status = False
+            self.prev_high_beam_status = data
+        if identifier == "Indicator_R":
+            if data > 0 and not self.prev_indicator_right_status:
+                if not self.indicator_right_status:
+                    self.indicator_right_output.on()
+                    self.indicator_right_status = True
+                else:
+                    self.indicator_right_output.off()
+                    self.indicator_right_status = False
+            self.prev_indicator_right_status = data
+        if identifier == "Indicator_L":
+            if data > 0 and not self.prev_indicator_left_status:
+                if not self.indicator_left_status:
+                    self.indicator_left_output.on()
+                    self.indicator_left_status = True
+                else:
+                    self.indicator_left_output.off()
+                    self.indicator_left_status = False
+            self.prev_indicator_left_status = data
         if identifier == "Horn" and data > 0:
             if not self.horn_status:
                 self.horn_output.on()

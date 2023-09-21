@@ -234,7 +234,6 @@ class TelemetryThread(QThread):
         self.telemetry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 26)
         self.telemetry_socket.bind(("0.0.0.0", 50008))
         self.host_ip = REMOTE_HOST_IP
-        # self.host_ip = "169.254.117.19"
         self.host_port = 50008
         message = b"Initializing ..."
         try:
@@ -682,6 +681,8 @@ class Ui_window_title(object):
     def on_establish_connection_click(self):
         ip = self.ip_input.text()
         if self.valid_ip(ip, False):
+            global REMOTE_HOST_IP
+            REMOTE_HOST_IP = ip
             self.controller_thread = ControlsThread(self.ai_overlay)
             self.controller_thread.controls_signal.connect(self.handle_controller)
             self.controller_thread.start()

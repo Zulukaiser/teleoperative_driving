@@ -1,7 +1,7 @@
 import time
 from gpiozero import Servo, DigitalOutputDevice, Buzzer
+from gpiozero.pins.pigpio import PiGPIOFactory
 from identifier_mapping import TDTP_IDENTIFIERS
-
 
 class Vehicle(object):
     """A controller class for the Traxxas TRX4 Model
@@ -11,6 +11,7 @@ class Vehicle(object):
     is given as well as a self made lighting assembly with an additional horn.
     """
     def __init__(self):
+        self.pin_factory = PiGPIOFactory()
         self.indicator_left = 23
         self.indicator_right = 24
         self.day_light = 25
@@ -28,16 +29,16 @@ class Vehicle(object):
         self.brake_lights_status = False
         self.horn_status = False
 
-        self.indicator_left_output = DigitalOutputDevice(pin=self.indicator_left)
-        self.indicator_right_output = DigitalOutputDevice(pin=self.indicator_right)
-        self.high_beam_output = DigitalOutputDevice(pin=self.high_beam)
-        self.low_beam_output = DigitalOutputDevice(pin=self.low_beam)
-        self.brake_lights_output = DigitalOutputDevice(pin=self.brake_lights)
-        self.day_light_output = DigitalOutputDevice(pin=self.day_light)
-        self.horn_output = Buzzer(pin=self.horn)
+        self.indicator_left_output = DigitalOutputDevice(pin=self.indicator_left, pin_factory=self.pin_factory)
+        self.indicator_right_output = DigitalOutputDevice(pin=self.indicator_right, pin_factory=self.pin_factory)
+        self.high_beam_output = DigitalOutputDevice(pin=self.high_beam, pin_factory=self.pin_factory)
+        self.low_beam_output = DigitalOutputDevice(pin=self.low_beam, pin_factory=self.pin_factory)
+        self.brake_lights_output = DigitalOutputDevice(pin=self.brake_lights, pin_factory=self.pin_factory)
+        self.day_light_output = DigitalOutputDevice(pin=self.day_light, pin_factory=self.pin_factory)
+        self.horn_output = Buzzer(pin=self.horn, pin_factory=self.pin_factory)
 
-        self.drive = Servo(self.driving)
-        self.steer = Servo(self.steering)
+        self.drive = Servo(self.driving, pin_factory=self.pin_factory)
+        self.steer = Servo(self.steering, pin_factory=self.pin_factory)
 
     def control_vehicle(self, control_data: tuple) -> None:
         """Function for controlling the TRX4's lighting system, steering, driving and the horn.

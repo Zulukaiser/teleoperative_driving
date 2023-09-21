@@ -50,6 +50,8 @@ class ControlInput:
 
     def _monitor_controller(self):
         self.done = False
+        pedals = pygame.joystick.Joystick(2)
+        wheel = pygame.joystick.Joystick(0)
         while not self.done:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -69,30 +71,17 @@ class ControlInput:
                 if event.type == pygame.JOYDEVICEREMOVED:
                     del self.joysticks[event.instance_id]
 
-                joystick_count = pygame.joystick.get_count()
+                self.gas = (pedals.get_axis(0) + 1) / 2
+                self.brake = (pedals.get_axis(1) + 1) / 2
 
-                for joystick in self.joysticks.values():
-                    jid = joystick.get_instance_id()
-                    name = joystick.get_name()
-                    guid = joystick.get_guid()
-                    power_level = joystick.get_power_level()
-                    axes = joystick.get_numaxes()
-                    buttons = joystick.get_numbuttons()
-                    hats = joystick.get_numhats()
+                self.swa = wheel.get_axis(0)
+                self.lowbeam = wheel.get_button(7)
+                self.highbeam = wheel.get_button(11)
+                self.horn = wheel.get_button(2)
+                self.indicator_l = wheel.get_button(60)
+                self.indicator_r = wheel.get_button(61)
 
-                    if name == "Fanatec USB Pedals":
-                        self.gas = (joystick.get_axis(0) + 1) / 2
-                        self.brake = (joystick.get_axid(1) + 1) / 1.5
-
-                    if name == "Fanatec Podium Wheel Base DD2":
-                        self.swa = joystick.get_axis(0)
-                        self.lowbeam = joystick.get_buttons(7)
-                        self.highbeam = joystick.get_buttons(11)
-                        self.horn = joystick.get_buttons(2)
-                        self.indicator_l = joystick.get_buttons(60)
-                        self.indicator_r = joystick.get_buttons(61)
-
-                clock.tick(60)
+                clock.tick(400)
 
     def stop(self):
         self.done = True

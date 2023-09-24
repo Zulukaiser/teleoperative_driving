@@ -100,5 +100,17 @@ You can also start the script via the VS Code Editor
 
 In future updates the *teleoperative_driving.py* script may be converted into an executable for easier handling.
 
+When the *teleoperative_driving.py* script is running, you will see the following GUI:
+
+![GUI](/Documentation/Software/Pictures/GUI.png)
+1. Enter the IP Address (default: 10.3.141.1)
+2. Click on the **Establish Connection** Button to connect to the vehicle
+3. If the **Connection Status** indicator is green, click on the **Start Video** Button to enable the video stream from the vehicle
+4. If you want to control the vehicle, click on the **Activate Controls** Button to activate the control inputs.
+
+To check if the connection was successful, you can look at the **ax, ay** and **az** values. If they show around 0 and 1, then the connection is established.
+
+On the vehicle, you need to start the ESC for the driving motor. Press and hold the button of the ESC until the red LED lights up. Wait for around 5 seconds, then you can control the vehicle.
+
 ## Raspberry Pi Access Point <a name="access-point">
 In order to connect to the Raspberry Pi a Ethernet communication is needed. To enhance the range of use, a WiFi connection is required. The Raspberry Pi is configured as an Access Point to generate a WiFi network with the SSID ***"teleoperative"*** and the same as the password. In order to change the SSID or the WiFi password, access to the Access Point is needed. Opening the configuration site for the Access Point is done by going to ***"10.3.141.1"*** and logging in as ***"admin"*** (Password is provided on the Hardware). There you can change the configuration of the RaspAP Access Point to your liking.
